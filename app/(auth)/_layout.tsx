@@ -3,16 +3,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { TouchableOpacity } from 'react-native';
 
-import { SQLiteProvider } from 'expo-sqlite/next';
-import { migrateDbIfNeeded } from '@/utils/Database';
-import { RevenueCatProvider } from '@/providers/RevenueCat';
+// Removed SQLiteProvider and migrateDbIfNeeded imports
+// import { SQLiteProvider } from 'expo-sqlite/next';
+// import { migrateDbIfNeeded } from '@/utils/Database';
+// Removed RevenueCatProvider import
+// import { RevenueCatProvider } from '@/providers/RevenueCat';
+
 
 const Layout = () => {
   const router = useRouter();
 
   return (
-    <RevenueCatProvider>
-      <SQLiteProvider databaseName="chat.db" onInit={migrateDbIfNeeded}>
+    // Removed RevenueCatProvider and SQLiteProvider
+    // <RevenueCatProvider>
+    //   <SQLiteProvider databaseName="chat.db" onInit={migrateDbIfNeeded}>
         <Stack
           screenOptions={{
             contentStyle: { backgroundColor: Colors.selected },
@@ -68,8 +72,8 @@ const Layout = () => {
             }}
           />
         </Stack>
-      </SQLiteProvider>
-    </RevenueCatProvider>
+    //   </SQLiteProvider>
+    // </RevenueCatProvider>
   );
 };
 

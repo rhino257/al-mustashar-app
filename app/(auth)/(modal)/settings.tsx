@@ -1,9 +1,9 @@
 import Colors from '@/constants/Colors';
 import { defaultStyles } from '@/constants/Styles';
 import { keyStorage } from '@/utils/Storage';
-import { useAuth } from '@clerk/clerk-expo';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext'; // Import useAuth from Supabase context
 import { View, Text, TouchableOpacity, StyleSheet, TextInput, Button } from 'react-native';
 import { useMMKVString } from 'react-native-mmkv';
 const Page = () => {
@@ -14,7 +14,8 @@ const Page = () => {
   const [org, setOrg] = useState('');
   const router = useRouter();
 
-  const { signOut } = useAuth();
+  // Get signOut from Supabase AuthContext
+  const { signOut: supabaseSignOut } = useAuth();
 
   const saveApiKey = async () => {
     setKey(apiKey);
@@ -67,7 +68,13 @@ const Page = () => {
           </TouchableOpacity>
         </>
       )}
-      <Button title="Sign Out" onPress={() => signOut()} color={Colors.grey} />
+      <Button title="Sign Out" onPress={async () => {
+        // Optional: manage a loading state
+        // setLoading(true);
+        await supabaseSignOut();
+        // No need to set loading false or navigate,
+        // AuthContext and _layout.tsx will handle redirection.
+      }} color={Colors.grey} />
     </View>
   );
 };

@@ -17,19 +17,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { DrawerActions } from '@react-navigation/native';
 import { useEffect, useState } from 'react';
-import { getChats, renameChat } from '@/utils/Database';
-import { useSQLiteContext } from 'expo-sqlite/next';
+import { getChats, renameChat, deleteChatViaFunction, Chat } from '@/utils/Database'; // Import Supabase functions and Chat type
+import { useSQLiteContext } from 'expo-sqlite/next'; // Keep for now, will remove later
 import { useDrawerStatus } from '@react-navigation/drawer';
-import { Chat } from '@/utils/Interfaces';
 import * as ContextMenu from 'zeego/context-menu';
-import { useRevenueCat } from '@/providers/RevenueCat';
+// Removed Chat import from utils/Interfaces
 import { Keyboard } from 'react-native';
 
 export const CustomDrawerContent = (props: any) => {
   const { bottom, top } = useSafeAreaInsets();
-  const db = useSQLiteContext();
+  const db = useSQLiteContext(); // Keep for now, will remove later
   const isDrawerOpen = useDrawerStatus() === 'open';
-  const [history, setHistory] = useState<Chat[]>([]);
+  const [history, setHistory] = useState<Chat[]>([]); // Use new Chat type
   const router = useRouter();
 
   useEffect(() => {
@@ -38,37 +37,52 @@ export const CustomDrawerContent = (props: any) => {
   }, [isDrawerOpen]);
 
   const loadChats = async () => {
-    // Load chats from SQLite
-    const result = (await getChats(db)) as Chat[];
-    setHistory(result);
+    // Load chats from Supabase
+    try {
+      const result = await getChats(); // Call new getChats, no db argument
+      setHistory(result);
+    } catch (error) {
+      console.error("Failed to load chats:", error);
+      // Handle error appropriately in UI if needed
+    }
   };
 
-  const onDeleteChat = (chatId: number) => {
-    Alert.alert('Delete Chat', 'Are you sure you want to delete this chat?', [
-      {
-        text: 'Cancel',
-        style: 'cancel',
-      },
-      {
-        text: 'Delete',
-        onPress: async () => {
-          // Delete the chat
-          await db.runAsync('DELETE FROM chats WHERE id = ?', chatId);
-          loadChats();
-        },
-      },
-    ]);
-  };
-
-  const onRenameChat = (chatId: number) => {
+  // Implement renameChat function using Supabase
+  const onRenameChat = (chatId: string) => { // chatId is now string
     Alert.prompt('Rename Chat', 'Enter a new name for the chat', async (newName) => {
       if (newName) {
-        // Rename the chat
-        await renameChat(db, chatId, newName);
-        loadChats();
+        const success = await renameChat(chatId, newName); // Call new renameChat
+        if (success) {
+          loadChats(); // Refresh the list
+          Alert.alert('Success', 'Chat renamed.');
+        } else {
+          Alert.alert('Error', 'Failed to rename chat.');
+        }
       }
     });
   };
+
+  // Implement deleteChat function using Supabase Edge Function
+  const onDeleteChat = (chatId: string) => { // chatId is now string
+    Alert.alert('Delete Chat', 'Are you sure you want to delete this chat?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        onPress: async () => {
+          const result = await deleteChatViaFunction(chatId); // Call deleteChatViaFunction
+          if (result.success) {
+            loadChats(); // Refresh the list
+            Alert.alert('Success', result.message || 'Chat deleted.');
+            // If currently viewing the deleted chat, navigate away:
+            // if (router.params.id === chatId) router.replace('/(auth)/(drawer)/(chat)/new');
+          } else {
+            Alert.alert('Error', result.error || 'Failed to delete chat.');
+          }
+        },
+      },
+    ], { cancelable: false }); // Make alert not dismissible by tapping outside
+  };
+
 
   return (
     <View style={{ flex: 1, marginTop: top }}>
@@ -88,11 +102,11 @@ export const CustomDrawerContent = (props: any) => {
         contentContainerStyle={{ backgroundColor: '#fff', paddingTop: 0 }}>
         <DrawerItemList {...props} />
         {history.map((chat) => (
-          <ContextMenu.Root key={chat.id}>
+          <ContextMenu.Root key={chat.chat_id}> {/* Use chat_id for key */}
             <ContextMenu.Trigger>
               <DrawerItem
-                label={chat.title}
-                onPress={() => router.push(`/(auth)/(drawer)/(chat)/${chat.id}`)}
+                label={chat.chat_name} // Use chat_name for label
+                onPress={() => router.push(`/(auth)/(drawer)/(chat)/${chat.chat_id}`)} // Use chat_id for navigation
                 inactiveTintColor="#000"
               />
             </ContextMenu.Trigger>
@@ -100,12 +114,13 @@ export const CustomDrawerContent = (props: any) => {
               <ContextMenu.Preview>
                 {() => (
                   <View style={{ padding: 16, height: 200, backgroundColor: '#fff' }}>
-                    <Text>{chat.title}</Text>
+                    <Text>{chat.chat_name}</Text> {/* Use chat_name in preview */}
                   </View>
                 )}
               </ContextMenu.Preview>
 
-              <ContextMenu.Item key={'rename'} onSelect={() => onRenameChat(chat.id)}>
+              {/* Uncomment context menu items */}
+              <ContextMenu.Item key={'rename'} onSelect={() => onRenameChat(chat.chat_id)}> {/* Pass chat_id */}
                 <ContextMenu.ItemTitle>Rename</ContextMenu.ItemTitle>
                 <ContextMenu.ItemIcon
                   ios={{
@@ -114,7 +129,7 @@ export const CustomDrawerContent = (props: any) => {
                   }}
                 />
               </ContextMenu.Item>
-              <ContextMenu.Item key={'delete'} onSelect={() => onDeleteChat(chat.id)} destructive>
+              <ContextMenu.Item key={'delete'} onSelect={() => onDeleteChat(chat.chat_id)} destructive> {/* Pass chat_id */}
                 <ContextMenu.ItemTitle>Delete</ContextMenu.ItemTitle>
                 <ContextMenu.ItemIcon
                   ios={{
@@ -152,7 +167,7 @@ export const CustomDrawerContent = (props: any) => {
 const Layout = () => {
   const navigation = useNavigation();
   const dimensions = useWindowDimensions();
-  const { user } = useRevenueCat();
+  // Removed useRevenueCat hook call
   const router = useRouter();
 
   return (
@@ -231,16 +246,6 @@ const Layout = () => {
               <Image source={require('@/assets/images/dalle.png')} style={styles.dallEImage} />
             </View>
           ),
-        }}
-        listeners={{
-          drawerItemPress: (e) => {
-            e.preventDefault();
-            if (!user.dalle) {
-              router.navigate('/(auth)/(modal)/purchase');
-            } else {
-              router.navigate('/(auth)/dalle');
-            }
-          },
         }}
       />
       <Drawer.Screen

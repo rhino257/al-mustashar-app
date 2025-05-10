@@ -1,7 +1,8 @@
 import Colors from '@/constants/Colors';
 import { defaultStyles } from '@/constants/Styles';
-import { useSignIn, useSignUp } from '@clerk/clerk-expo';
+import { supabase } from '@/utils/supabase'; // Import Supabase client
 import { useLocalSearchParams } from 'expo-router';
+// Removed Clerk imports: useSignIn, useSignUp
 import React, { useState } from 'react';
 import {
   View,
@@ -18,50 +19,64 @@ import {
 
 const Login = () => {
   const { type } = useLocalSearchParams<{ type: string }>();
-  const { signIn, setActive, isLoaded } = useSignIn();
-  const { signUp, isLoaded: signUpLoaded, setActive: signupSetActive } = useSignUp();
+  // Removed Clerk hooks: signIn, setActive, isLoaded, signUp, signUpLoaded, signupSetActive
 
   const [emailAddress, setEmailAddress] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const onSignInPress = async () => {
-    if (!isLoaded) {
-      return;
-    }
     setLoading(true);
     try {
-      const completeSignIn = await signIn.create({
-        identifier: emailAddress,
-        password,
+      // Supabase sign-in logic
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: emailAddress,
+        password: password,
       });
 
-      // This indicates the user is signed in
-      await setActive({ session: completeSignIn.createdSessionId });
-    } catch (err: any) {
-      Alert.alert(err.errors[0].message);
+      if (error) {
+        Alert.alert('Sign In Error', error.message);
+      } else if (data.session) {
+        // Successful sign-in, AuthContext will handle the session.
+        // No explicit navigation needed here usually if _layout.tsx handles it based on session.
+        // Alert.alert('Sign In Successful!'); // Optional success message
+      } else {
+         Alert.alert('Sign In Failed', 'Please check your credentials or try again.');
+      }
+    } catch (err: any) { // Keep the generic catch
+      Alert.alert('Sign In Error', err.message || 'An unexpected error occurred.');
     } finally {
       setLoading(false);
     }
   };
 
   const onSignUpPress = async () => {
-    if (!signUpLoaded) {
-      return;
-    }
     setLoading(true);
 
     try {
-      // Create the user on Clerk
-      const result = await signUp.create({
-        emailAddress,
-        password,
+      // Supabase sign-up logic
+      const { data, error } = await supabase.auth.signUp({
+        email: emailAddress,
+        password: password,
       });
 
-      // This indicates the user is signed in
-      signupSetActive({ session: result.createdSessionId });
-    } catch (err: any) {
-      alert(err.errors[0].message);
+      if (error) {
+        Alert.alert('Sign Up Error', error.message);
+      } else if (data.user && data.user.identities && data.user.identities.length === 0) {
+        // This condition often indicates email confirmation is pending
+        // Or if data.session is null but data.user exists
+        Alert.alert('Sign Up Successful', 'Please check your email to confirm your account.');
+        // Optionally, you might want to navigate the user away or clear fields
+      } else if (data.session) {
+        // If session is immediately available (e.g., email confirmation disabled in Supabase)
+        Alert.alert('Sign Up Successful!', 'You are now signed in.');
+        // The AuthContext will handle the session and trigger navigation via _layout.tsx
+      } else {
+         Alert.alert('Sign Up Successful', 'Please check your email to confirm your account if required.');
+      }
+      // router.replace('/'); // Consider if navigation is needed here or handled by AuthContext
+    } catch (err: any) { // Keep the generic catch for unexpected errors
+      Alert.alert('Sign Up Error', err.message || 'An unexpected error occurred.');
     } finally {
       setLoading(false);
     }

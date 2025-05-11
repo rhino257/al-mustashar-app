@@ -25,7 +25,7 @@ export interface Message {
   message_timestamp: string; // Standard Supabase timestamp
   is_user_message: boolean;  // New: true for user, false for assistant
   tokens_used?: number | null; // New, optional
-  message_type?: string | null; // New, optional (e.g., 'text', 'image')
+  messageType?: string | null; // New, optional (e.g., 'text', 'image')
   file_metadata?: { [key: string]: any } | null; // New, JSONB for image/file content (e.g., { url: '...', prompt: '...' })
                             // The 'prompt' field was on the old message type, now potentially in file_metadata for images
   loading?: boolean;         // New: Optional flag for UI loading state during streaming
@@ -156,7 +156,7 @@ export const addMessageToSupabase = async (
     user_id: userId, // This is auth.uid()
     message_text: messageText,
     is_user_message: true, // Critical: This is a user message
-    message_type: messageType,
+    messageType: messageType,
     file_metadata: fileMetadata || null,
   };
 
@@ -189,7 +189,7 @@ export const addAssistantMessageViaFunction = async (
       chat_id: chatId,
       message_text: messageText,
       tokens_used: tokensUsed,
-      message_type: messageType,
+      messageType: messageType,
       file_metadata: fileMetadata,
     },
   });

@@ -2,7 +2,6 @@ import { useFonts } from 'expo-font';
 import { Slot, SplashScreen, Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import * as SecureStore from 'expo-secure-store';
-// Removed ClerkProvider import
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'; // Import AuthProvider and useAuth from Supabase context
 import { Ionicons } from '@expo/vector-icons';
 import { ActivityIndicator, TouchableOpacity, View } from 'react-native';
@@ -15,7 +14,8 @@ SplashScreen.preventAutoHideAsync();
 
 const InitialLayout = () => {
   const [loaded, error] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+    // Commented out SpaceMono font to test Arabic input support
+    // SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
   // Use Supabase Auth state
   const { session, isLoading: isSupabaseAuthLoading } = useAuth();
@@ -32,6 +32,9 @@ const InitialLayout = () => {
       SplashScreen.hideAsync();
     }
   }, [loaded]);
+
+  // Note: With no fonts loaded, 'loaded' will be true immediately.
+  // If you add other fonts later, ensure this effect correctly handles their loading state.
 
   // Redirection logic based on Supabase Auth state
   useEffect(() => {

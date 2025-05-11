@@ -35,18 +35,39 @@ export const streamRagQuery = async (
   try {
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
     if (sessionError || !session) {
-      throw new Error('User not authenticated for RAG API call.');
+      // If onStreamError is defined, use it, otherwise throw
+      if (typeof onStreamError === 'function') {
+        onStreamError(new Error('User not authenticated for RAG API call.'));
+        return; // Exit if onStreamError is called and handles it
+      } else {
+        throw new Error('User not authenticated for RAG API call.');
+      }
     }
     const token = session.access_token;
 
-    const response = await fetch(`${RAG_API_BASE_URL}/rag/query`, {
-      method: 'POST',
+    // Encode payload as URL query parameters for GET request
+    const params = new URLSearchParams();
+    params.append('query', payload.query);
+    params.append('chat_id', payload.chat_id);
+    if (payload.ai_message_id) {
+      params.append('ai_message_id', payload.ai_message_id);
+    }
+    // Add pipeline_name if it's part of your payload and backend GET endpoint
+    // if (payload.pipeline_name) { // Assuming pipeline_name might be in payload
+    //   params.append('pipeline_name', payload.pipeline_name);
+    // }
+
+    const constructedUrl = `${RAG_API_BASE_URL}/rag/query?${params.toString()}`;
+    console.log(`[STREAM RAG QUERY - GET] URL: ${constructedUrl}`); // Log the GET URL
+
+    const response = await fetch(constructedUrl, {
+      method: 'GET', // Use GET method
       headers: {
-        'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
         'Accept': 'text/event-stream', // Important: tell server we expect SSE
+        // NO 'Content-Type': 'application/json' here for GET
       },
-      body: JSON.stringify(payload),
+      // NO body here for GET
     });
 
     if (!response.ok) {
@@ -96,7 +117,7 @@ export const streamRagQuery = async (
           }
           // Ignore other lines like 'id:' or comments ':'
         }
-        
+
         if (eventDataString) {
           try {
             const jsonData = JSON.parse(eventDataString);
@@ -121,6 +142,12 @@ export const streamRagQuery = async (
 
   } catch (error: any) {
     console.error('RAG Streaming Error:', error);
-    onStreamError(error);
+    // If onStreamError is defined, pass the error to it
+    if (typeof onStreamError === 'function') {
+      onStreamError(error);
+    } else {
+      // If onStreamError is not provided, and an error occurs, it might be unhandled by calling code.
+      console.error('onStreamError callback not provided or not a function. Error will not be propagated via callback.');
+    }
   }
 };

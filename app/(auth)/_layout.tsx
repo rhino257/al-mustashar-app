@@ -1,7 +1,8 @@
 import Colors from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
-import { TouchableOpacity } from 'react-native';
+import { TouchableOpacity, View, ActivityIndicator } from 'react-native'; // Import View and ActivityIndicator
+import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
 
 // Removed SQLiteProvider and migrateDbIfNeeded imports
 // import { SQLiteProvider } from 'expo-sqlite/next';
@@ -12,6 +13,14 @@ import { TouchableOpacity } from 'react-native';
 
 const Layout = () => {
   const router = useRouter();
+  const { session, isLoading } = useAuth(); // Use useAuth hook
+
+  // If session is loading or null, don't render authenticated content
+  if (isLoading || !session) {
+    // You could return a loading indicator here if needed,
+    // but returning null allows the root layout to handle the redirect without rendering this content.
+    return null;
+  }
 
   return (
     // Removed RevenueCatProvider and SQLiteProvider
@@ -31,7 +40,7 @@ const Layout = () => {
               headerStyle: { backgroundColor: Colors.selected },
               headerRight: () => (
                 <TouchableOpacity
-                  onPress={() => router.back()}
+                  onPress={() => router.dismiss()}
                   style={{ backgroundColor: Colors.greyLight, borderRadius: 20, padding: 4 }}>
                   <Ionicons name="close-outline" size={16} color={Colors.grey} />
                 </TouchableOpacity>
@@ -52,21 +61,6 @@ const Layout = () => {
                   onPress={() => router.back()}
                   style={{ borderRadius: 20, padding: 4 }}>
                   <Ionicons name="close-outline" size={28} color={'#fff'} />
-                </TouchableOpacity>
-              ),
-            }}
-          />
-          <Stack.Screen
-            name="(modal)/purchase"
-            options={{
-              headerTitle: '',
-              presentation: 'fullScreenModal',
-              headerShadowVisible: false,
-              headerLeft: () => (
-                <TouchableOpacity
-                  onPress={() => router.back()}
-                  style={{ borderRadius: 20, padding: 4 }}>
-                  <Ionicons name="close-outline" size={28} color={Colors.greyLight} />
                 </TouchableOpacity>
               ),
             }}

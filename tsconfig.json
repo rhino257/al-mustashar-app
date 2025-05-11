@@ -10,7 +10,9 @@
     "target": "esnext",
     "module": "esnext",
     "lib": ["esnext", "dom"],
-    "jsx": "react-native"
+    "jsx": "react-native",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true
   },
   "include": [
     "**/*.ts",

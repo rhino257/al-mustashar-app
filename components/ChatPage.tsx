@@ -12,7 +12,6 @@ import ChatMessage from '@/components/ChatMessage';
 import { Role } from '@/utils/Interfaces'; // Keep Role enum if still used for UI logic
 import MessageIdeas from '@/components/MessageIdeas';
 import { addChat, getMessages, addMessageToSupabase, addAssistantMessageViaFunction, Message, Chat } from '@/utils/Database'; // Import Supabase functions and types
-import { useSQLiteContext } from 'expo-sqlite/next'; // Keep for now, will remove later
 import { useAuth } from '@/contexts/AuthContext'; // Import useAuth to get user ID
 import { streamRagQuery, StreamEvent } from '@/utils/api'; // Import RAG streaming functions and types
 
@@ -25,12 +24,11 @@ const ChatPage = () => {
   const [key, setKey] = useMMKVString('apikey', keyStorage);
   const [organization, setOrganization] = useMMKVString('org', keyStorage);
   const [messages, setMessages] = useState<Message[]>([]); // Use new Message type
-  const db = useSQLiteContext(); // Keep for now, will remove later
   let { id } = useLocalSearchParams<{ id: string }>();
 
-  if (!key || key === '' || !organization || organization === '') {
-    return <Redirect href={'/(auth)/(modal)/settings'} />;
-  }
+// if (!key || key === '' || !organization || organization === '') {
+//   return <Redirect href={'/(auth)/(modal)/settings'} />;
+// }
 
   const [chatId, _setChatId] = useState<string | undefined>(id); // Explicitly type chatId
   const chatIdRef = useRef(chatId);
@@ -99,7 +97,7 @@ const ChatPage = () => {
             message_text: text,
             message_timestamp: new Date().toISOString(),
             is_user_message: true,
-            message_type: 'text',
+            messageType: 'text',
             // Add other fields if needed for local display
         };
         setMessages(prevMessages => [...prevMessages, localUserMessage]);
@@ -138,7 +136,7 @@ const ChatPage = () => {
            message_text: text,
            message_timestamp: new Date().toISOString(),
            is_user_message: true,
-           message_type: 'text',
+           messageType: 'text',
            // Add other fields if needed for local display
        };
        setMessages(prevMessages => [...prevMessages, localUserMessage]);
@@ -245,7 +243,7 @@ const ChatPage = () => {
                             currentActiveChatId, // Use the chatId active when stream started
                             currentBotMessage.message_text,
                             undefined, // tokens_used
-                            'text',    // message_type
+                            'text',    // messageType
                             undefined  // file_metadata (or event.data.metadata if you want to store RAG sources)
                         )
                         .then(savedBotMessage => {
@@ -297,17 +295,19 @@ const ChatPage = () => {
     <View style={defaultStyles.pageContainer}>
       <Stack.Screen
         options={{
-          headerTitle: () => (
-            <HeaderDropDown
-              title="ChatGPT"
-              items={[
-                { key: '3.5', title: 'GPT-3.5', icon: 'bolt' },
-                { key: '4', title: 'GPT-4', icon: 'sparkles' },
-              ]}
-              onSelect={onGptVersionChange}
-              selected={gptVersion}
-            />
-          ),
+          // Temporarily commented out HeaderDropDown to investigate MenuView error
+          // headerTitle: () => (
+          //   <HeaderDropDown
+          //     title="ChatGPT"
+          //     items={[
+          //       { key: '3.5', title: 'GPT-3.5', icon: 'bolt' },
+          //       { key: '4', title: 'GPT-4', icon: 'sparkles' },
+          //     ]}
+          //     onSelect={onGptVersionChange}
+          //     selected={gptVersion}
+          //   />
+          // ),
+          headerTitle: 'ChatGPT', // Provide a fallback title
         }}
       />
       <View style={styles.page} onLayout={onLayout}>

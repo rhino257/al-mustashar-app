@@ -1,3 +1,4 @@
+import React, { memo } from 'react'; // Import memo
 import Colors from '@/constants/Colors';
 import { Text, ScrollView, TouchableOpacity, StyleSheet, View } from 'react-native';
 
@@ -43,4 +44,4 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
 });
-export default MessageIdeas;
+export default memo(MessageIdeas); // Wrap with memo

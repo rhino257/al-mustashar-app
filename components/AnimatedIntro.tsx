@@ -15,27 +15,27 @@ import { ReText } from 'react-native-redash';
 
 const content = [
   {
-    title: "Let's create.",
+    title: "بضعظة زر.",
     bg: Colors.lime,
     fontColor: Colors.pink,
   },
   {
-    title: "Let's brainstorm.",
+    title: "نتبادل الأفكار.",
     bg: Colors.brown,
     fontColor: Colors.sky,
   },
   {
-    title: "Let's discover.",
+    title: "نكتشف.",
     bg: Colors.orange,
     fontColor: Colors.blue,
   },
   {
-    title: "Let's go.",
+    title: "ننطلق.",
     bg: Colors.teal,
     fontColor: Colors.yellow,
   },
   {
-    title: 'ChatGPT.',
+    title: 'المستشار.',
     bg: Colors.green,
     fontColor: Colors.pink,
   },

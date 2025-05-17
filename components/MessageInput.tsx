@@ -1,143 +1,211 @@
-import Colors from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
-import { View, StyleSheet } from 'react-native';
-import { TextInput, TouchableOpacity } from 'react-native-gesture-handler';
-import Animated, {
-  Extrapolation,
-  interpolate,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FontAwesome5 } from '@expo/vector-icons';
-import { useRef, useState } from 'react';
-import { BlurView } from 'expo-blur';
-import * as DocumentPicker from 'expo-document-picker';
-import * as ImagePicker from 'expo-image-picker';
+import {
+  View,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  Text,
+} from 'react-native';
+import React, { useState, useRef, memo } from 'react';
+import Colors from '@/constants/Colors'; // Assuming Colors is defined here
 
-const ATouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
-
-export type Props = {
+// Props interface
+export interface Props {
   onShouldSend: (message: string) => void;
-};
+  isSending: boolean; // RE-ADDED THIS PROP
+  onStopSending: () => void; // Added prop to handle stopping the sending process
+}
 
-const MessageInput = ({ onShouldSend }: Props) => {
+const MessageInput: React.FC<Props> = (props) => {
   const [message, setMessage] = useState('');
-  const { bottom } = useSafeAreaInsets();
-  const expanded = useSharedValue(0);
+  const { bottom } = useSafeAreaInsets(); // If used for keyboard avoiding view padding
   const inputRef = useRef<TextInput>(null);
+  const [showUploadMessage, setShowUploadMessage] = useState(false); // For popup messages
+  const [uploadMessageText, setUploadMessageText] = useState(''); // For popup messages
+  const timerRef = useRef<NodeJS.Timeout | null>(null); // For popup messages
+  const [isLampSelected, setIsLampSelected] = useState(false); // For the lamp icon
 
-  const expandItems = () => {
-    expanded.value = withTiming(1, { duration: 400 });
+  // Helper function to display popup messages
+  const displayMessage = (text: string) => {
+    setUploadMessageText(text);
+    setShowUploadMessage(true);
+
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+    }
+
+    timerRef.current = setTimeout(() => {
+      setShowUploadMessage(false);
+    }, 2000); // Hide after 2 seconds
   };
 
-  const collapseItems = () => {
-    expanded.value = withTiming(0, { duration: 400 });
+  // Handle lamp icon press
+  const handleLampPress = () => {
+    setIsLampSelected(!isLampSelected);
+    // TODO: Implement lamp functionality
+    displayMessage('Lamp feature unavailable');
   };
 
-  const expandButtonStyle = useAnimatedStyle(() => {
-    const opacityInterpolation = interpolate(expanded.value, [0, 1], [1, 0], Extrapolation.CLAMP);
-    const widthInterpolation = interpolate(expanded.value, [0, 1], [30, 0], Extrapolation.CLAMP);
+  // Handle upload feature unavailable
+  const handleUploadFeatureUnavailable = () => {
+    displayMessage('Upload feature unavailable');
+  };
 
-    return {
-      opacity: opacityInterpolation,
-      width: widthInterpolation,
-    };
-  });
-
-  const buttonViewStyle = useAnimatedStyle(() => {
-    const widthInterpolation = interpolate(expanded.value, [0, 1], [0, 100], Extrapolation.CLAMP);
-    return {
-      width: widthInterpolation,
-      opacity: expanded.value,
-    };
-  });
-
+  // Handle text input change
   const onChangeText = (text: string) => {
-    collapseItems();
     setMessage(text);
   };
 
+  // Handle send button press
   const onSend = () => {
-    onShouldSend(message);
-    setMessage('');
-  };
-
-  const onSelectCard = (text: string) => {
-    onShouldSend(text);
+    if (message.trim().length > 0) {
+      props.onShouldSend(message.trim());
+      setMessage('');
+    }
   };
 
   return (
-    <BlurView intensity={90} tint="extraLight" style={{ paddingBottom: bottom, paddingTop: 10 }}>
-      <View style={styles.row}>
-        <ATouchableOpacity onPress={expandItems} style={[styles.roundBtn, expandButtonStyle]}>
-          <Ionicons name="add" size={24} color={Colors.grey} />
-        </ATouchableOpacity>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0} // Adjust offset as needed
+      style={[styles.keyboardAvoidingView, { paddingBottom: bottom }]}
+    >
+      {/* Popup message View */}
+      {showUploadMessage && (
+        <View style={styles.uploadMessagePopup}>
+          <Text style={styles.uploadMessageText}>{uploadMessageText}</Text>
+        </View>
+      )}
 
-        <Animated.View style={[styles.buttonView, buttonViewStyle]}>
-          <TouchableOpacity onPress={() => ImagePicker.launchCameraAsync()}>
-            <Ionicons name="camera-outline" size={24} color={Colors.grey} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => ImagePicker.launchImageLibraryAsync()}>
-            <Ionicons name="image-outline" size={24} color={Colors.grey} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => DocumentPicker.getDocumentAsync()}>
-            <Ionicons name="folder-outline" size={24} color={Colors.grey} />
-          </TouchableOpacity>
-        </Animated.View>
-
+      <View style={styles.contentContainer}>
+        {/* TextInput component */}
         <TextInput
-          autoFocus
           ref={inputRef}
-          placeholder="Message"
           style={styles.messageInput}
-          onFocus={collapseItems}
-          onChangeText={onChangeText}
+          placeholder="Message"
+          placeholderTextColor={Colors.chatgptText}
           value={message}
-          multiline
+          onChangeText={onChangeText}
+          multiline={true}
+          scrollEnabled={true}
         />
-        {message.length > 0 ? (
-          <TouchableOpacity onPress={onSend}>
-            <Ionicons name="arrow-up-circle" size={24} color={Colors.grey} />
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity>
-            <FontAwesome5 name="headphones" size={24} color={Colors.grey} />
-          </TouchableOpacity>
-        )}
+
+        {/* Icon Row below TextInput */}
+        <View style={styles.iconRow}>
+          {/* First iconGroup (RTL Left side) */}
+          <View style={styles.iconGroup}>
+            {/* THIS IS WHERE THE isSending LOGIC GOES */}
+            {/* THIS IS WHERE THE isSending LOGIC GOES */}
+            {/* THIS IS WHERE THE isSending LOGIC GOES */}
+            {/* THIS IS WHERE THE isSending LOGIC GOES */}
+            {props.isSending ? (
+              // Display when message is being sent (the "stop recording" like icon)
+              <TouchableOpacity key="stop-button" style={[styles.iconButton, styles.recordingIndicatorBase]} onPress={props.onStopSending}>
+                <Ionicons name="stop-sharp" size={18} color={Colors.black} />
+              </TouchableOpacity>
+            ) : message.length === 0 ? (
+              // Display Mic icon when no message and not sending
+              <TouchableOpacity key="mic-button" style={styles.iconButton} onPress={() => {/* TODO: Voice input */}}>
+                <Ionicons name="mic-outline" size={28} color={Colors.chatgptText} />
+              </TouchableOpacity>
+            ) : (
+              // Display Send icon when there's a message and not sending
+              <TouchableOpacity key="send-button" style={styles.iconButton} onPress={onSend}>
+                <Ionicons
+                  name="send-outline"
+                  size={24}
+                  color={Colors.chatgptText}
+                  style={{ transform: [{ scaleX: -1 }] }} // Left-pointing send
+                />
+              </TouchableOpacity>
+            )}
+
+            {/* Lamp Icon (remains next to the block above) */}
+            <TouchableOpacity style={styles.iconButton} onPress={handleLampPress}>
+              <Ionicons
+                name={isLampSelected ? 'bulb' : 'bulb-outline'}
+                size={24}
+                color={isLampSelected ? Colors.chatgptText : Colors.chatgptText} // Or active color
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* Second iconGroup (RTL Right side) */}
+          <View style={styles.iconGroup}>
+            {/* Plus/Add Icon */}
+            <TouchableOpacity style={styles.iconButton} onPress={handleUploadFeatureUnavailable}>
+              <Ionicons name="add-circle-outline" size={28} color={Colors.chatgptText} />
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
-    </BlurView>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
+  keyboardAvoidingView: {
+    width: '100%',
+    backgroundColor: Colors.chatgptDarkGray, // Dark theme background
+  },
+  contentContainer: {
+    flexDirection: 'column', // Stack TextInput above iconRow
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: Colors.chatgptDarkGray, // Dark theme background
   },
   messageInput: {
     flex: 1,
-    marginHorizontal: 10,
-    borderWidth: StyleSheet.hairlineWidth,
+    minHeight: 40,
+    maxHeight: 120, // Limit height for multiline input
+    backgroundColor: 'transparent', // Input background - Removed background
     borderRadius: 20,
-    padding: 10,
-    borderColor: Colors.greyLight,
-    backgroundColor: Colors.light,
+    paddingHorizontal: 15,
+    paddingTop: 10, // Adjust padding for multiline
+    paddingBottom: 10,
+    fontSize: 16,
+    color: Colors.chatgptText, // Text color
+    marginBottom: 8, // Space between input and icon row
+    textAlignVertical: 'top', // Align text to top on Android
   },
-  roundBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 20,
-    backgroundColor: Colors.input,
+  iconRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between', // Space out the two icon groups
+    alignItems: 'center',
+    width: '100%',
+  },
+  iconGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  buttonView: {
-    flexDirection: 'row',
+  uploadMessagePopup: {
+    position: 'absolute',
+    top: -40, // Position above the input
+    left: 10,
+    right: 10,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    borderRadius: 5,
+    padding: 8,
     alignItems: 'center',
-    gap: 12,
+    zIndex: 10, // Ensure it's above other elements
+  },
+  uploadMessageText: {
+    color: Colors.white,
+    fontSize: 14,
+  },
+  recordingIndicatorBase: {
+    backgroundColor: Colors.white, // Ensure Colors.white is defined (e.g., '#FFFFFF')
+    borderRadius: 20, // Half of iconButton width/height to make it circular
   },
 });
-export default MessageInput;
+
+export default memo(MessageInput);

@@ -1,348 +1,428 @@
-import HeaderDropDown from '@/components/HeaderDropDown';
 import MessageInput from '@/components/MessageInput';
+import Colors from '@/constants/Colors';
 import { defaultStyles } from '@/constants/Styles';
-import { keyStorage, storage } from '@/utils/Storage';
-import { Redirect, Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Image, View, StyleSheet, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { storage } from '@/utils/Storage';
+import { Stack, useLocalSearchParams } from 'expo-router';
+// Import useRef
+import { useEffect, useState, useRef } from 'react';
+import { Image, View, StyleSheet, KeyboardAvoidingView, Platform, Alert, Text } from 'react-native';
 import { useMMKVString } from 'react-native-mmkv';
-import OpenAI from 'react-native-openai';
+// Import FlashList type for the ref
 import { FlashList } from '@shopify/flash-list';
 import ChatMessage from '@/components/ChatMessage';
-import { Role } from '@/utils/Interfaces'; // Keep Role enum if still used for UI logic
 import MessageIdeas from '@/components/MessageIdeas';
-import { addChat, getMessages, addMessageToSupabase, addAssistantMessageViaFunction, Message, Chat } from '@/utils/Database'; // Import Supabase functions and types
-import { useAuth } from '@/contexts/AuthContext'; // Import useAuth to get user ID
-import { streamRagQuery, StreamEvent } from '@/utils/api'; // Import RAG streaming functions and types
+import { addChat, getMessages, addMessageToSupabase, Chat } from '@/utils/Database';
+import { useAuth } from '@/contexts/AuthContext';
+import { streamRagQuery, StreamEvent } from '@/utils/api';
+import uuid from 'react-native-uuid';
 
+// --- Define the Message Interface ---
+export interface Message {
+  key: string;
+  message_id: string;
+  chat_id: string;
+  user_id: string;
+  message_text: string;
+  message_timestamp: string;
+  is_user_message: boolean;
+  loading?: boolean;
+  messageType: 'text' | string;
+  ai_message_id?: string | null; // Added to store RAG AI ID
+}
+// --- End Message Interface Definition ---
+
+const ASSISTANT_USER_ID_CONST = 'ASSISTANT_USER_ID';
 
 const ChatPage = () => {
   const [gptVersion, setGptVersion] = useMMKVString('gptVersion', storage);
-  // Get user ID from AuthContext
   const { user } = useAuth();
   const [height, setHeight] = useState(0);
-  const [key, setKey] = useMMKVString('apikey', keyStorage);
-  const [organization, setOrganization] = useMMKVString('org', keyStorage);
-  const [messages, setMessages] = useState<Message[]>([]); // Use new Message type
+  const [messages, setMessages] = useState<Message[]>([]);
   let { id } = useLocalSearchParams<{ id: string }>();
 
-// if (!key || key === '' || !organization || organization === '') {
-//   return <Redirect href={'/(auth)/(modal)/settings'} />;
-// }
+  const [chatId, setChatId] = useState<string | undefined>(id === 'new' ? undefined : id);
+  const [isSending, setIsSending] = useState(false); // Added isSending state
+  const [_, setUpdateTrigger] = useState(0); // Dummy state to force re-render
 
-  const [chatId, _setChatId] = useState<string | undefined>(id); // Explicitly type chatId
-  const chatIdRef = useRef(chatId);
-  // https://stackoverflow.com/questions/55265255/react-usestate-hook-event-handler-using-initial-state
-  function setChatId(id: string | undefined) { // Allow undefined for new chats
-    chatIdRef.current = id;
-    _setChatId(id);
-  }
+  // Ref to store the stream closer function
+  const streamCloserRef = useRef<(() => void) | null>(null);
 
-  // Re-enable/Update useEffect for Fetching Messages
+  // --- 1. Create a Ref for FlashList ---
+  const listRef = useRef<FlashList<Message>>(null);
+
+  // --- Effect for Loading Initial Messages ---
   useEffect(() => {
-    // This effect now handles loading messages when the chat_id (from route) changes
-    const currentChatIdFromRoute = id; // id from useLocalSearchParams
+    const currentChatIdFromRoute = id;
     if (currentChatIdFromRoute && currentChatIdFromRoute !== 'new') {
-      setChatId(currentChatIdFromRoute); // Keep local chatId state in sync
-      // setLoadingMessages(true); // Optional: set a loading state
-      getMessages(currentChatIdFromRoute).then((fetchedMessages: Message[]) => { // Explicitly type fetchedMessages
-        setMessages(fetchedMessages);
-      }).catch((error: any) => { // Explicitly type error
-        console.error("Failed to load messages for chat:", currentChatIdFromRoute, error);
+      console.log(`[ChatPage] Loading messages for existing chat: ${currentChatIdFromRoute}`);
+      setChatId(currentChatIdFromRoute);
+      getMessages(currentChatIdFromRoute).then((fetchedMessages: any[]) => {
+        const messagesWithKeys = fetchedMessages.map((msg): Message => ({
+          ...msg,
+          key: msg.message_id || `db_${uuid.v4()}`,
+          message_id: msg.message_id,
+          chat_id: msg.chat_id,
+          user_id: msg.user_id,
+          message_text: msg.message_text,
+          message_timestamp: msg.message_timestamp,
+          is_user_message: msg.is_user_message,
+          messageType: msg.messageType || 'text',
+        }));
+        setMessages(messagesWithKeys);
+        console.log(`[ChatPage] Loaded ${messagesWithKeys.length} messages.`);
+        // Note: Auto-scroll will be handled by the messages.length effect below
+      }).catch((error: any) => {
+        console.error("[ChatPage] Failed to load messages for chat:", currentChatIdFromRoute, error);
         Alert.alert("Error", "Could not load messages.");
-      }).finally(() => {
-        // setLoadingMessages(false);
       });
     } else {
-      setMessages([]); // Clear messages if it's a new chat or no id
+      console.log("[ChatPage] New chat session or ID missing.");
+      setMessages([]);
       setChatId(undefined);
     }
-  }, [id]); // Depend on 'id' from route params
+  }, [id]);
 
-  const onGptVersionChange = (version: string) => {
-    setGptVersion(version);
-  };
+  // Effect to force MessageInput re-render when isSending changes
+  useEffect(() => {
+    setUpdateTrigger(prev => prev + 1);
+  }, [isSending]);
+
+  // --- 3. Effect for Auto-Scrolling ---
+  useEffect(() => {
+    if (messages.length > 0) {
+      // Scroll to end when the number of messages increases (new message added or initial load)
+      const timer = setTimeout(() => {
+        listRef.current?.scrollToEnd({ animated: true });
+      }, 50); // Short delay to allow render completion
+
+      // Cleanup timeout if effect re-runs before timeout finishes
+      return () => clearTimeout(timer);
+    }
+  }, [messages.length]); // Depend only on the length changing
+
 
   const onLayout = (event: any) => {
-    const { height } = event.nativeEvent.layout;
-    setHeight(height / 2);
+    const { height: layoutHeight } = event.nativeEvent.layout;
+    setHeight(layoutHeight / 2);
   };
 
+  // --- getCompletion function remains the same ---
   const getCompletion = async (text: string) => {
-    // Ensure user is authenticated before creating a chat
     if (!user?.id) {
       Alert.alert("Error", "User not authenticated. Cannot create chat.");
       return;
     }
 
+    setIsSending(true); // Set sending to true at the start
+
     const currentUserId = user.id;
-    const currentChatId = chatIdRef.current;
+    let currentActiveChatId = chatId;
+
+    const tempUserKey = `user_${uuid.v4()}`;
+    const tempUserMessageId = `temp_${tempUserKey}`;
+
+    const localUserMessage: Message = {
+      key: tempUserKey,
+      message_id: tempUserMessageId,
+      chat_id: currentActiveChatId || 'new_chat_pending',
+      user_id: currentUserId,
+      message_text: text,
+      message_timestamp: new Date().toISOString(),
+      is_user_message: true,
+      messageType: 'text',
+    };
+
+    // Add user message optimistically
+    // The messages.length useEffect will trigger auto-scroll after this state updates
+    setMessages(prevMessages => [...prevMessages, localUserMessage]);
+    console.log(`[ChatPage] Optimistically added user message with key: ${tempUserKey}`);
 
 
-    if (messages.length === 0) {
-      // Create a new chat in Supabase
-      try {
-        const newChatSession = await addChat(currentUserId, text, gptVersion); // Call new addChat
-        const newChatId = newChatSession.chat_id; // Get the new chat_id (UUID string)
-
-        setChatId(newChatId); // Update local state with the new string ID
-        chatIdRef.current = newChatId; // Also update ref immediately
-
-        // Add the first user message to local state and save to DB
-        const tempUserMessageId = `temp_${Date.now()}`; // Use a temporary ID
-        const localUserMessage: Message = {
-            message_id: tempUserMessageId,
-            chat_id: newChatId,
-            user_id: currentUserId,
-            message_text: text,
-            message_timestamp: new Date().toISOString(),
-            is_user_message: true,
-            messageType: 'text',
-            // Add other fields if needed for local display
-        };
-        setMessages(prevMessages => [...prevMessages, localUserMessage]);
-
+    try {
+      if (!currentActiveChatId) {
+        console.log("[ChatPage] Creating new chat session.");
         try {
-            const savedUserMessage = await addMessageToSupabase(newChatId, currentUserId, text);
-            // Optional: Update local message with ID from DB if you want to replace temp ID
-            setMessages(prevMessages => prevMessages.map(msg =>
-                msg.message_id === tempUserMessageId ? savedUserMessage : msg
-            ));
-        } catch (dbError) {
-            console.error("Failed to save user message to DB:", dbError);
-            Alert.alert("Error", "Could not send message. Please try again.");
-            // Optionally remove the local message or mark it as failed
-            setMessages(prevMessages => prevMessages.filter(msg => msg.message_id !== tempUserMessageId));
-            return; // Stop if user message failed to save
+          const newChatSession = await addChat(currentUserId, text, gptVersion || 'default');
+          currentActiveChatId = newChatSession.chat_id;
+          setChatId(currentActiveChatId);
+          console.log(`[ChatPage] New chat created with ID: ${currentActiveChatId}`);
+
+          setMessages(prev => prev.map(msg =>
+            msg.key === tempUserKey ? { ...msg, chat_id: currentActiveChatId! } : msg
+          ));
+        } catch (chatError: any) {
+          console.error("[ChatPage] Error during addChat:", chatError);
+          // Re-throw the error so the outer catch block can handle cleanup
+          throw chatError;
         }
-
-        // Optional: Redirect to the new chat URL after successful creation and saving first message
-        // router.replace(`/(auth)/(drawer)/(chat)/${newChatId}`);
-
-
-      } catch (error) {
-        console.error("Failed to create new chat:", error);
-        Alert.alert("Error", "Failed to create new chat.");
-        // Handle error appropriately
-        return; // Stop execution if chat creation fails
       }
-    } else {
-       // For existing chats: Add user message locally and save to DB
-       const tempUserMessageId = `temp_${Date.now()}`; // Use a temporary ID
-       const localUserMessage: Message = {
-           message_id: tempUserMessageId,
-           chat_id: currentChatId!, // Use existing chatId
-           user_id: currentUserId,
-           message_text: text,
-           message_timestamp: new Date().toISOString(),
-           is_user_message: true,
-           messageType: 'text',
-           // Add other fields if needed for local display
-       };
-       setMessages(prevMessages => [...prevMessages, localUserMessage]);
 
-       try {
-           const savedUserMessage = await addMessageToSupabase(currentChatId!, currentUserId, text);
-           // Optional: Update local message with ID from DB if you want to replace temp ID
-           setMessages(prevMessages => prevMessages.map(msg =>
-               msg.message_id === tempUserMessageId ? savedUserMessage : msg
-           ));
-       } catch (dbError) {
-           console.error("Failed to save user message to DB:", dbError);
-           Alert.alert("Error", "Could not send message. Please try again.");
-           // Optionally remove the local message or mark it as failed
-           setMessages(prevMessages => prevMessages.filter(msg => msg.message_id !== tempUserMessageId));
-           return; // Stop if user message failed to save
-       }
+      if (!currentActiveChatId) {
+         throw new Error("Failed to establish chat ID after attempting creation.");
+      }
+
+      console.log(`[ChatPage] Saving user message to DB for chat ${currentActiveChatId}`);
+      const savedUserMessageData = await addMessageToSupabase(currentActiveChatId, currentUserId, text);
+
+      setMessages(prevMessages => prevMessages.map(msg =>
+        msg.key === tempUserKey
+          ? { ...msg, message_id: savedUserMessageData.message_id }
+          : msg
+      ));
+      console.log(`[ChatPage] User message updated with permanent ID: ${savedUserMessageData.message_id}`);
+
+    } catch (error: any) {
+      console.error("[ChatPage] Failed to create chat or save user message:", error);
+      Alert.alert("Error", `Failed to send message: ${error.message || 'Please try again.'}`);
+      setMessages(prevMessages => prevMessages.filter(msg => msg.key !== tempUserKey));
+      setIsSending(false); // Reset sending state on error
+      return;
     }
 
-    // Add a temporary "loading" bot message to local state before starting stream
-    const tempBotMessageId = `temp_bot_${Date.now()}`;
-    setMessages(prev => [...prev, {
-        message_id: tempBotMessageId, // Temporary ID
-        chat_id: chatIdRef.current!,
-        user_id: 'ASSISTANT_USER_ID', // Or however you identify assistant - needs to match your DB/Function logic
-        message_text: '', // Starts empty
-        message_timestamp: new Date().toISOString(), // Use current time for local display
-        is_user_message: false,
-        loading: true, // Add loading flag
-        message_type: 'text',
-    }]);
-
-
-    // Comment out OpenAI streaming for RAG API test
-    // openAI.chat.stream({
-    //   messages: [
-    //     {
-    //       role: 'user', // OpenAI API still expects 'user' role
-    //       content: text,
-    //     },
-    //     // You might need to include previous messages here for context
-    //     // This requires fetching previous messages and formatting them for the OpenAI API
-    //     // This is a larger task for a later stage (RAG integration)
-    //   ],
-    //   model: gptVersion == '4' ? 'gpt-4' : 'gpt-3.5-turbo',
-    // });
-
-    const currentActiveChatId = chatIdRef.current; // Use the ref as it's updated immediately
-
+    // Inside getCompletion function, right before streamRagQuery:
+    console.log(`[ChatPage] CHECKPOINT: About to call streamRagQuery. currentActiveChatId: ${currentActiveChatId}, User query: "${text}"`);
     if (!currentActiveChatId) {
-        Alert.alert("Error", "Chat session not available for RAG query.");
-        // Clean up temp bot message if it was added
-        setMessages(prev => prev.filter(msg => msg.message_id !== tempBotMessageId));
+        console.error("[ChatPage] FATAL ERROR: currentActiveChatId is undefined/null before streamRagQuery call. Aborting API call.");
+        Alert.alert("Critical Error", "Cannot send message: Chat session is not properly initialized.");
+        setIsSending(false); // Reset sending state as we cannot proceed
         return;
     }
 
-    streamRagQuery(
-        { query: text, chat_id: currentActiveChatId },
-        (event: StreamEvent) => { // onStreamEvent callback
-            console.log('RAG Event:', event.event, event.data);
-            setMessages(prevMessages => {
-                const lastMsgIndex = prevMessages.length - 1;
-                if (lastMsgIndex < 0) return prevMessages;
+    const botStableKey = `bot_${uuid.v4()}`;
+    const tempBotMessageId = `temp_${botStableKey}`;
 
-                let updatedMessages = [...prevMessages];
-                const currentBotMessage = { ...updatedMessages[lastMsgIndex] };
+    const botPlaceholder: Message = {
+      key: botStableKey,
+      message_id: tempBotMessageId,
+      chat_id: currentActiveChatId,
+      user_id: ASSISTANT_USER_ID_CONST,
+      message_text: '',
+      message_timestamp: new Date().toISOString(),
+      is_user_message: false,
+      loading: true,
+      messageType: 'text',
+    };
 
-                // Ensure we are updating the correct loading message
-                if (!currentBotMessage || currentBotMessage.is_user_message || !currentBotMessage.loading) {
-                    // This might happen if events arrive after we thought it was done,
-                    // or if the last message isn't the one we expect.
-                    // Consider finding the loading message by its temp ID if set.
-                    console.warn("Trying to update non-loading or user message with stream event.");
-                    return prevMessages;
-                }
+    // Add AI placeholder
+    // The messages.length useEffect will trigger auto-scroll after this state updates
+    setMessages(prev => [...prev, botPlaceholder]);
+    console.log(`[ChatPage] Added AI placeholder message with key: ${botStableKey}`);
 
-                let messageIdToUseForSaving = currentBotMessage.message_id;
+    console.log(`[ChatPage] Starting RAG stream for chat ${currentActiveChatId} with query: "${text}"`);
+    // Store the closer function returned by streamRagQuery
+    streamCloserRef.current = await streamRagQuery(
+      { query: text, chat_id: currentActiveChatId! }, // Ensured currentActiveChatId is defined by now
+      (receivedStreamEvent: StreamEvent) => {
+        const streamData = receivedStreamEvent.data;
+        const eventType = receivedStreamEvent.event;
 
-                if (event.event === 'metadata') {
-                    if (event.data.ai_message_id && currentBotMessage.message_id.startsWith('temp_bot_')) {
-                        currentBotMessage.message_id = event.data.ai_message_id;
-                        messageIdToUseForSaving = event.data.ai_message_id; // Update the ID used for saving
-                    }
-                    // You might also want to store event.data.file_processing_errors to display them
-                } else if (event.event === 'stream_initiated') {
-                    // currentBotMessage.status_text = event.data.status; // If you have a field for this
-                } else if (event.event === 'message_update') {
-                    currentBotMessage.message_text = event.data.full_content;
-                    // currentBotMessage.sources = event.data.metadata?.sources; // If handling sources
-                } else if (event.event === 'message_finalized') {
-                    currentBotMessage.message_text = event.data.full_content;
-                    currentBotMessage.loading = false;
-                    // currentBotMessage.sources = event.data.metadata?.sources;
-
-                    if (event.data.status === 'error' && event.data.error_details) {
-                        console.error('RAG error during stream (finalized event):', event.data.error_details);
-                        currentBotMessage.message_text += `\n\nError: ${event.data.error_details.user_facing_message || event.data.error_details.error}`;
-                        // For errors during stream, we might not want to save to DB, or save with an error flag.
-                        // For now, we just display error.
-                    } else if (event.data.status !== 'error') {
-                        // Save the successfully finalized assistant message to DB
-                        // Use the potentially updated messageIdToUseForSaving
-                        addAssistantMessageViaFunction(
-                            currentActiveChatId, // Use the chatId active when stream started
-                            currentBotMessage.message_text,
-                            undefined, // tokens_used
-                            'text',    // messageType
-                            undefined  // file_metadata (or event.data.metadata if you want to store RAG sources)
-                        )
-                        .then(savedBotMessage => {
-                            // Update local message with actual ID from DB and ensure loading is false
-                            setMessages(prev => prev.map(msg =>
-                                msg.message_id === messageIdToUseForSaving // Match by the ID used for saving
-                                ? { ...savedBotMessage, loading: false }
-                                : msg
-                            ));
-                        })
-                        .catch(dbError => {
-                            console.error("Failed to save FINAL assistant message to DB:", dbError);
-                            Alert.alert("Error", "Assistant response could not be saved.");
-                            // The message is displayed; mark as unsaved if needed
-                            setMessages(prev => prev.map(msg =>
-                                msg.message_id === messageIdToUseForSaving
-                                ? { ...msg, loading: false, message_text: `${msg.message_text} [Save Failed]` }
-                                : msg
-                            ));
-                        });
-                    }
-                }
-                updatedMessages[lastMsgIndex] = currentBotMessage;
-                return updatedMessages;
-            });
-        },
-        (error: Error) => { // onStreamError callback (network/request setup errors)
-            console.error('RAG Stream Setup Error (ChatPage):', error.message);
-            Alert.alert('Connection Error', `Failed to connect to assistant: ${error.message}`);
-            // Update UI: remove loading indicator from temp bot message and show error
-            setMessages(prev => prev.map(msg =>
-                (msg.loading && !msg.is_user_message) // Find the loading bot message
-                ? { ...msg, loading: false, message_text: `Error connecting to assistant: ${error.message}` }
-                : msg
-            ));
-        },
-        () => { // onStreamComplete callback (stream ended naturally)
-            console.log('RAG Stream Naturally Completed (ChatPage)');
-            // Ensure any final loading states are off.
-            // Most finalization is handled by 'message_finalized' event.
-             setMessages(prev => prev.map(msg =>
-                (msg.loading && !msg.is_user_message) ? { ...msg, loading: false } : msg
-            ));
+        if (typeof streamData !== 'object' || streamData === null) {
+            console.error(`[ChatPage] Stream Error: Event '${eventType}' data is not an object or is null. Data:`, streamData);
+            return;
         }
+        // console.log(`[ChatPage] Stream Event: ${eventType} received at ${new Date().toISOString()}`);
+
+        // State update for streaming content - length doesn't change, so no auto-scroll here
+        setMessages((prevMessages: Message[]) => {
+            let updatedMessages = [...prevMessages];
+            let messageToUpdateIndex = -1;
+
+            const indexByKey = updatedMessages.findIndex(m => m.key === botStableKey && !m.is_user_message);
+            const permanentIdFromEvent = streamData.ai_message_id;
+            let indexById = -1;
+            if (permanentIdFromEvent) {
+                 indexById = updatedMessages.findIndex(m => m.message_id === permanentIdFromEvent && !m.is_user_message);
+            }
+
+            if (eventType === 'metadata') {
+                messageToUpdateIndex = indexByKey;
+                if (messageToUpdateIndex === -1) {
+                    console.warn(`[ChatPage] Event: metadata - Could not find message with stable key ${botStableKey} to update ID.`);
+                }
+            } else {
+                 messageToUpdateIndex = indexById !== -1 ? indexById : indexByKey;
+                 if (messageToUpdateIndex === -1) {
+                     console.warn(`[ChatPage] Event: ${eventType} - Could not find message with ID ${permanentIdFromEvent} or key ${botStableKey}.`);
+                 }
+            }
+
+            if (messageToUpdateIndex === -1) {
+                return prevMessages;
+            }
+
+            let botMsgToUpdate = { ...updatedMessages[messageToUpdateIndex] };
+
+            // For message_finalized event, prioritize persistent_ai_message_id
+            if (eventType === 'message_finalized' && streamData.persistent_ai_message_id) {
+                const persistentId = streamData.persistent_ai_message_id;
+                console.log(`[ChatPage] Received persistent_ai_message_id: ${persistentId} in message_finalized event.`);
+                botMsgToUpdate.ai_message_id = persistentId;
+                if (botMsgToUpdate.message_id && botMsgToUpdate.message_id.startsWith('temp_')) {
+                    botMsgToUpdate.message_id = persistentId; // Update message_id to persistent ID as well
+                }
+            } else if (streamData.ai_message_id) { // Fallback for other events or if persistent_ai_message_id is not in message_finalized
+                let idFromStream = streamData.ai_message_id;
+                const suffixToRemove = '_ai_response_default';
+                if (idFromStream.endsWith(suffixToRemove)) {
+                    idFromStream = idFromStream.substring(0, idFromStream.length - suffixToRemove.length);
+                    console.log(`[ChatPage] Cleaned (fallback) ai_message_id: ${streamData.ai_message_id} -> ${idFromStream}`);
+                }
+                // Only set ai_message_id if not already set by persistent_ai_message_id
+                if (!botMsgToUpdate.ai_message_id) {
+                    botMsgToUpdate.ai_message_id = idFromStream;
+                }
+                // Update message_id if temporary and not already set by persistent_ai_message_id
+                if (botMsgToUpdate.message_id && botMsgToUpdate.message_id.startsWith('temp_') && (!streamData.persistent_ai_message_id || eventType !== 'message_finalized')) {
+                    botMsgToUpdate.message_id = idFromStream;
+                }
+            } else if (eventType === 'metadata' && !streamData.ai_message_id && !streamData.persistent_ai_message_id) {
+                 console.error(`[ChatPage] CRITICAL: 'metadata' event received but no ai_message_id or persistent_ai_message_id found. Bot message with key ${botStableKey} may lack necessary IDs.`);
+            }
+
+
+            if (eventType === 'message_update') {
+                botMsgToUpdate.message_text = streamData.cumulative_text || botMsgToUpdate.message_text;
+                botMsgToUpdate.loading = true;
+            } else if (eventType === 'message_finalized') {
+                botMsgToUpdate.message_text = streamData.full_content || botMsgToUpdate.message_text;
+                botMsgToUpdate.loading = false; // Loading is set to false here
+                
+                // Ensure ai_message_id is set if persistent_ai_message_id was provided
+                if (streamData.persistent_ai_message_id && !botMsgToUpdate.ai_message_id) {
+                    botMsgToUpdate.ai_message_id = streamData.persistent_ai_message_id;
+                     if (botMsgToUpdate.message_id && botMsgToUpdate.message_id.startsWith('temp_')) {
+                        botMsgToUpdate.message_id = streamData.persistent_ai_message_id;
+                    }
+                }
+
+
+                if (streamData.status === 'error' && streamData.error_details) {
+                    console.error('[ChatPage] RAG error during stream (finalized event):', streamData.error_details);
+                    const errorMsg = `\n\nError: ${streamData.error_details.user_facing_message || streamData.error_details.error || 'Unknown stream error'}`;
+                    botMsgToUpdate.message_text += errorMsg;
+                }
+            } else {
+                 console.log(`[ChatPage] Unhandled stream event type: ${eventType}`);
+            }
+
+            updatedMessages[messageToUpdateIndex] = botMsgToUpdate;
+            return updatedMessages;
+        });
+      },
+      (error: Error) => { // onError callback
+        console.error('[ChatPage] RAG Stream Setup/Connection Error:', error);
+        Alert.alert('Connection Error', `Failed to connect to assistant: ${error.message}`);
+        setMessages(prev => prev.map(msg =>
+            (msg.key === botStableKey)
+            ? { ...msg, loading: false, message_text: `Error connecting: ${error.message}` }
+            : msg
+        ));
+        setIsSending(false); // Set sending to false on error
+      },
+      () => { // onCompletion callback
+        // Stream completion
+        setMessages(prev => prev.map(msg =>
+            (msg.key === botStableKey && msg.loading) // Ensure we only set loading false if it was still true
+            ? { ...msg, loading: false }
+            : msg
+        ));
+        console.log(`[ChatPage] RAG Stream completed for bot key: ${botStableKey}`);
+        setIsSending(false); // Set sending to false on completion
+        streamCloserRef.current = null; // Clear the ref on completion
+      }
     );
   };
 
+  // Function to handle stopping the sending process
+  const handleStopSending = () => {
+    console.log('[ChatPage] Stop button pressed. Attempting to close stream.');
+    if (streamCloserRef.current) {
+      streamCloserRef.current(); // Call the closer function immediately
+      streamCloserRef.current = null; // Clear the ref
+      console.log('[ChatPage] Stream closer called.');
+    } else {
+      console.warn('[ChatPage] Stop button pressed, but no active stream closer found.');
+    }
+
+    // Always update UI states after attempting to close the stream
+    setIsSending(false); // Reset sending state for MessageInput
+
+    // Find the bot message that was loading and set its loading state to false
+    setMessages(prevMessages =>
+      prevMessages.map(msg => {
+        if (!msg.is_user_message && msg.loading) {
+          console.log(`[ChatPage] handleStopSending: Setting loading to false for message_id: ${msg.message_id}`);
+          return { ...msg, loading: false };
+        }
+        return msg;
+      })
+    );
+    console.log('[ChatPage] Sending state and relevant message loading states reset.');
+  };
+
+
+  const getItemType = (item: Message): string => {
+      if (!item.is_user_message) {
+          return 'AI';
+      } else {
+          return 'USER';
+      }
+  };
+
+
   return (
-    <View style={defaultStyles.pageContainer}>
+    <View style={[defaultStyles.pageContainer, { backgroundColor: Colors.chatgptBackground }]}>
       <Stack.Screen
         options={{
-          // Temporarily commented out HeaderDropDown to investigate MenuView error
-          // headerTitle: () => (
-          //   <HeaderDropDown
-          //     title="ChatGPT"
-          //     items={[
-          //       { key: '3.5', title: 'GPT-3.5', icon: 'bolt' },
-          //       { key: '4', title: 'GPT-4', icon: 'sparkles' },
-          //     ]}
-          //     onSelect={onGptVersionChange}
-          //     selected={gptVersion}
-          //   />
-          // ),
-          headerTitle: 'ChatGPT', // Provide a fallback title
         }}
       />
       <View style={styles.page} onLayout={onLayout}>
-        {messages.length == 0 && (
-          <View style={[styles.logoContainer, { marginTop: height / 2 - 100 }]}>
-            <Image source={require('@/assets/images/logo-white.png')} style={styles.image} />
-          </View>
+        {messages.length === 0 && (
+          <Text style={[{ fontSize: 24, fontWeight: 'bold', color: '#fff', textAlign: 'center' }, { marginTop: height > 100 ? height - 100 : 50 }]}>
+            كيف يمكنني مساعدتك؟
+          </Text>
         )}
         <FlashList
+          // --- 2. Assign Ref ---
+          ref={listRef}
           data={messages}
-          renderItem={({ item }) => <ChatMessage {...item} />} // ChatMessage needs to adapt to new Message type
-          estimatedItemSize={400}
+          renderItem={({ item }) => <ChatMessage {...item} />}
+          estimatedItemSize={100}
           contentContainerStyle={{ paddingTop: 30, paddingBottom: 150 }}
           keyboardDismissMode="on-drag"
-          keyExtractor={(item) => item.message_id} // Use message_id for key
+          keyExtractor={(item: Message) => item.key}
+          getItemType={getItemType}
+          automaticallyAdjustContentInsets={false}
         />
       </View>
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={70}
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          width: '100%',
-        }}>
-        {messages.length === 0 && <MessageIdeas onSelectCard={getCompletion} />}
-        <MessageInput onShouldSend={getCompletion} />
+        style={styles.keyboardAvoidingView}
+      >
+
+        <MessageInput
+          key={isSending ? 'sending-input' : 'idle-input'} // Add key based on isSending state
+          {...{ // Explicitly pass props in an object to potentially influence re-render
+            onShouldSend: getCompletion,
+            isSending: isSending, // Pass the isSending state
+            onStopSending: handleStopSending, // Pass the stop handler
+          }}
+        />
       </KeyboardAvoidingView>
     </View>
   );
 };
 
+// Styles remain the same
 const styles = StyleSheet.create({
+  headerTitle: {
+      fontSize: 18,
+      fontWeight: '500',
+      color: '#ffffff', // Set header title color to white
+      textAlign: 'right',
+  },
   logoContainer: {
     alignSelf: 'center',
     alignItems: 'center',
@@ -355,10 +435,17 @@ const styles = StyleSheet.create({
   image: {
     width: 30,
     height: 30,
-    resizeMode: 'cover',
+    resizeMode: 'contain',
   },
   page: {
     flex: 1,
+    // backgroundColor: defaultStyles.pageContainer.backgroundColor, // Removed conflicting background
+  },
+  keyboardAvoidingView: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    width: '100%',
   },
 });
 export default ChatPage;

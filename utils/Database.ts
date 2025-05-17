@@ -29,6 +29,10 @@ export interface Message {
   file_metadata?: { [key: string]: any } | null; // New, JSONB for image/file content (e.g., { url: '...', prompt: '...' })
                             // The 'prompt' field was on the old message type, now potentially in file_metadata for images
   loading?: boolean;         // New: Optional flag for UI loading state during streaming
+  user_feedback?: string | null; // New: User feedback for the message
+  ai_message_id?: string | null; // New: ID from the RAG system for AI messages
+  // Add a dedicated key property
+  key: string;
   // Old fields like 'role' (string) are replaced by 'is_user_message' (boolean) and potentially 'user_id'.
   // Old 'imageUrl' is now part of 'file_metadata' if message_type is 'image'.
   // Old 'prompt' (for DALL-E) would also be part of 'file_metadata' if associated with an image message.
@@ -140,7 +144,8 @@ export const getMessages = async (chatId: string): Promise<Message[]> => {
     console.error(`Error fetching messages for chat ${chatId}:`, error.message);
     throw error; // Or return empty array: return [];
   }
-  return data || [];
+  // Map fetched data to set the 'key' property
+  return data ? data.map(msg => ({ ...msg, key: msg.message_id })) : [];
 };
 
 // Implement addMessageToSupabase (for User Messages) in utils/Database.ts
@@ -183,25 +188,34 @@ export const addAssistantMessageViaFunction = async (
   tokensUsed?: number | null,
   messageType: string = 'text',
   fileMetadata?: { [key: string]: any } | null
-): Promise<Message> => { // Expect the function to return the created message
-  const { data, error } = await supabase.functions.invoke('add-assistant-message', {
-    body: {
-      chat_id: chatId,
-      message_text: messageText,
-      tokens_used: tokensUsed,
-      messageType: messageType,
-      file_metadata: fileMetadata,
-    },
-  });
+): Promise<{ success: boolean, data: Message[] }> => { // Expect the function to return the created message
+  const payload = {
+    chat_id: chatId,
+    message_text: messageText,
+    tokens_used: tokensUsed,
+    messageType: messageType,
+    file_metadata: fileMetadata,
+  };
+  console.log('[DatabaseUtils] addAssistantMessageViaFunction: Payload for invoke:', JSON.stringify(payload, null, 2));
+  console.log('[DatabaseUtils] addAssistantMessageViaFunction: typeof chatId:', typeof chatId);
+  console.log('[DatabaseUtils] addAssistantMessageViaFunction: typeof messageText:', typeof messageText);
 
-  if (error) {
-    console.error('Error invoking add-assistant-message function:', error.message);
-    throw error;
+  try {
+    const { data, error } = await supabase.functions.invoke('add-assistant-message', {
+      body: payload,
+    });
+
+    if (error) {
+      console.error('[DatabaseUtils] addAssistantMessageViaFunction: Supabase invoke FAILED. Error:', JSON.stringify(error, null, 2));
+      throw error;
+    }
+    console.log('[DatabaseUtils] addAssistantMessageViaFunction: Supabase invoke SUCCEEDED. Data:', JSON.stringify(data, null, 2));
+    return data;
+  } catch (e: any) {
+    console.error('[DatabaseUtils] addAssistantMessageViaFunction: Caught exception during invoke process. Error name:', e.name, 'Error message:', e.message);
+    // Do not log e.stack here if it's sensitive or too verbose, ChatPage will log stack of dbError
+    throw e; // Re-throw to be caught by ChatPage
   }
-  if (!data) { // Or check for specific error structure from your function
-    throw new Error('Failed to add assistant message via function or no data returned.');
-  }
-  return data as Message; // Cast to Message type, assuming function returns the message object
 };
 
 

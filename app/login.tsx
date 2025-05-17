@@ -3,6 +3,8 @@ import { defaultStyles } from '@/constants/Styles';
 import { supabase } from '@/utils/supabase'; // Import Supabase client
 import { useLocalSearchParams } from 'expo-router';
 // Removed Clerk imports: useSignIn, useSignUp
+import { Ionicons } from '@expo/vector-icons';
+import { Link, useRouter } from 'expo-router'; // Import useRouter
 import React, { useState } from 'react';
 import {
   View,
@@ -19,11 +21,17 @@ import {
 
 const Login = () => {
   const { type } = useLocalSearchParams<{ type: string }>();
+  console.log('Login page type:', type); // Add logging for the type parameter
+  const router = useRouter(); // Initialize router
   // Removed Clerk hooks: signIn, setActive, isLoaded, signUp, signUpLoaded, signupSetActive
 
   const [emailAddress, setEmailAddress] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const [isAppleLoginDisabled, setIsAppleLoginDisabled] = useState(true); // Initialize as true to make it disabled by default
+  const [showAppleFeatureUnavailableMessage, setShowAppleFeatureUnavailableMessage] = useState(false);
+  const appleMessageTimerRef = React.useRef<NodeJS.Timeout | null>(null); // Use React.useRef
 
   const onSignInPress = async () => {
     setLoading(true);
@@ -82,6 +90,17 @@ const Login = () => {
     }
   };
 
+  const handleAppleFeatureUnavailable = () => {
+    console.log('handleAppleFeatureUnavailable called');
+    if (appleMessageTimerRef.current) {
+      clearTimeout(appleMessageTimerRef.current);
+    }
+    setShowAppleFeatureUnavailableMessage(true);
+    appleMessageTimerRef.current = setTimeout(() => {
+      setShowAppleFeatureUnavailableMessage(false);
+    }, 4000); // Message will disappear after 4 seconds
+  };
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -95,34 +114,108 @@ const Login = () => {
 
       <Image source={require('../assets/images/logo-dark.png')} style={styles.logo} />
 
-      <Text style={styles.title}>{type === 'login' ? 'Welcome back' : 'Create your account'}</Text>
-      <View style={{ marginBottom: 30 }}>
-        <TextInput
-          autoCapitalize="none"
-          placeholder="john@apple.com"
-          value={emailAddress}
-          onChangeText={setEmailAddress}
-          style={styles.inputField}
-        />
-        <TextInput
-          placeholder="password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          style={styles.inputField}
-        />
+  <Text style={styles.title}>{type === 'login' ? 'أهلاً بعودتك' : 'انشاء حساب'}</Text>
+  <View style={{ marginBottom: 30 }}>
+    <TextInput
+      autoCapitalize="none"
+      placeholder="john@apple.com"
+      value={emailAddress}
+      onChangeText={setEmailAddress}
+      style={styles.inputField}
+    />
+    <TextInput
+      placeholder="كلمة المرور"
+      value={password}
+      onChangeText={setPassword}
+      secureTextEntry
+      style={styles.inputField}
+    />
+  </View>
+
+  {type === 'login' ? (
+    <>
+      <TouchableOpacity style={[defaultStyles.btn, styles.btnPrimary]} onPress={onSignInPress}>
+        <Text style={styles.btnPrimaryText}>تسجيل الدخول</Text>
+      </TouchableOpacity>
+
+      <Link href="/login?type=signup" asChild style={{ alignSelf: 'center', marginTop: 20 }}>
+      <TouchableOpacity style={{ flexDirection: 'row' }}>
+          <Text style={styles.linkText}>انشئ حسابك</Text>
+          <Text style={styles.blackText}>ليس لديك حساب؟ </Text>
+        </TouchableOpacity>
+      </Link>
+    </>
+  ) : (
+    <>
+      <TouchableOpacity style={[defaultStyles.btn, styles.btnPrimary]} onPress={onSignUpPress}>
+        <Text style={styles.btnPrimaryText}>انشاء حساب</Text>
+      </TouchableOpacity>
+
+      <Link href="/login?type=login" asChild style={{ alignSelf: 'center', marginTop: 20 }}>
+      <TouchableOpacity style={{ flexDirection: 'row' }}>
+          <Text style={styles.linkText}>تسجيل الدخول من هنا</Text>
+          <Text style={styles.blackText}>هل لديك حساب بالفعل؟ </Text>
+        </TouchableOpacity>
+      </Link>
+    </>
+  )}
+
+      <View style={styles.seperatorView}>
+        <View style={styles.seperator} />
+        <Text style={styles.seperatorText}>او سجل الدخول عبر</Text>
+        <View style={styles.seperator} />
       </View>
 
-      {type === 'login' ? (
-        <TouchableOpacity style={[defaultStyles.btn, styles.btnPrimary]} onPress={onSignInPress}>
-          <Text style={styles.btnPrimaryText}>Login</Text>
-        </TouchableOpacity>
-      ) : (
-        <TouchableOpacity style={[defaultStyles.btn, styles.btnPrimary]} onPress={onSignUpPress}>
-          <Text style={styles.btnPrimaryText}>Create account</Text>
-        </TouchableOpacity>
+      <TouchableOpacity style={[defaultStyles.btn, styles.socialBtn, styles.btnLight, styles.socialButtonSpacing]}>
+        <Ionicons name="logo-google" size={24} style={styles.btnIcon} color={'#000'} />
+        <Text style={styles.btnLightText}>استمر مع جوجل</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[
+          defaultStyles.btn,
+          styles.socialBtn,
+          styles.btnLight,
+          isAppleLoginDisabled && styles.btnDisabled, // Apply disabled style
+        ]}
+        onPress={() => {
+          if (isAppleLoginDisabled) {
+            handleAppleFeatureUnavailable(); // Call the message handler
+          } else {
+            // Actual Apple login logic would go here if it were enabled
+            console.log('Apple login would proceed here.');
+          }
+        }}
+      >
+        <Ionicons
+          name="logo-apple"
+          size={24}
+          style={styles.btnIcon}
+          color={isAppleLoginDisabled ? Colors.grey : '#000'} // Change icon color when disabled
+        />
+        <Text
+          style={[
+            styles.btnLightText,
+            isAppleLoginDisabled && styles.btnTextDisabled, // Apply disabled text style
+          ]}
+        >
+          استمر مع ابل
+        </Text>
+      </TouchableOpacity>
+
+      {/* Popup Message for Apple Login Feature Unavailable */}
+      {showAppleFeatureUnavailableMessage && (
+        <>
+          {console.log('showAppleFeatureUnavailableMessage is true, rendering popup')}
+          <View style={styles.featureUnavailablePopup}>
+            <Text style={styles.featureUnavailablePopupText}>
+              هذة الميزة قيد التطوير
+            </Text>
+          </View>
+        </>
       )}
-    </KeyboardAvoidingView>
+
+</KeyboardAvoidingView>
   );
 };
 
@@ -149,7 +242,7 @@ const styles = StyleSheet.create({
     height: 50,
     borderWidth: 1,
     borderColor: Colors.primary,
-    borderRadius: 12,
+    borderRadius: 25, // Increased border radius
     padding: 10,
     backgroundColor: '#fff',
   },
@@ -161,6 +254,86 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
   },
+  seperatorView: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+    marginVertical: 30,
+  },
+  seperator: {
+    flex: 1,
+    borderBottomColor: '#000',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  seperatorText: {
+    fontSize: 16,
+  },
+  btnIcon: {
+    paddingRight: 6,
+  },
+  btnOutlineText: {
+    color: '#000',
+    fontSize: 16,
+  },
+  linkText: {
+    color: Colors.primary,
+    fontSize: 16,
+  },
+  socialBtn: {
+    borderColor: '#000', // Changed border color to black
+    borderWidth: 1,
+  },
+  btnLight: { // Added btnLight style definition
+    backgroundColor: '#fff',
+  },
+  btnLightText: { // Added btnLightText style definition
+    color: '#000',
+    fontSize: 16, // Adjusted font size to match other text
+  },
+  socialButtonSpacing: { // Added style for spacing
+    marginBottom: 10,
+  },
+  blackText: { // Added style for black text
+    color: '#000',
+    fontSize: 16,
+  },
+
+  // New styles for disabled button
+  btnDisabled: {
+    backgroundColor: '#e0e0e0', // A lighter gray for the button background
+    opacity: 0.7,             // Make it slightly transparent
+    borderColor: '#c0c0c0',   // A slightly darker gray for the border
+  },
+  btnTextDisabled: {
+    color: Colors.grey, // Text color for disabled button
+  },
+
+  // Updated styles for a flexible feature unavailable popup
+  featureUnavailablePopup: {
+    position: 'absolute',
+    bottom: 70,
+    alignSelf: 'center',    // Keep this for initial centering of the popup content
+    marginLeft: 100,        // Pushes the entire popup to the RIGHT by 100 units.
+                            // This means it will appear more towards the left side of the button.
+                            // Adjust this value (e.g., 80, 120) as needed.
+    maxWidth: '60%',        // Constrain width to prevent it from becoming too wide.
+                            // Adjust if needed, e.g., '50%' or '70%'.
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    zIndex: 1000,
+    elevation: 5,
+  },
+  featureUnavailablePopupText: {
+    color: '#ffffff',
+    fontSize: 14,               // Slightly larger font size again, or keep at 13
+    textAlign: 'center',
+    // For Arabic, ensuring proper text direction handling if not default
+    // writingDirection: 'rtl', // Usually not needed if device/app locale is correct
+  },
+
 });
 
 export default Login;

@@ -10,12 +10,8 @@ const BottomLoginSheet = () => {
   return (
     <View style={[styles.container, { paddingBottom: bottom }]}>
       <TouchableOpacity style={[defaultStyles.btn, styles.btnLight]}>
-        <Ionicons name="logo-apple" size={14} style={styles.btnIcon} />
-        <Text style={styles.btnLightText}>Continue with Apple</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={[defaultStyles.btn, styles.btnDark]}>
-        <Ionicons name="logo-google" size={16} style={styles.btnIcon} color={'#fff'} />
-        <Text style={styles.btnDarkText}>Continue with Google</Text>
+        <Ionicons name="logo-google" size={16} style={styles.btnIcon} color={'#000'} />
+        <Text style={styles.btnLightText}>المتابعة باستخدام Google</Text>
       </TouchableOpacity>
       <Link
         href={{
@@ -25,10 +21,10 @@ const BottomLoginSheet = () => {
         style={[defaultStyles.btn, styles.btnDark]}
         asChild>
         <TouchableOpacity>
-          <Ionicons name="mail" size={20} style={styles.btnIcon} color={'#fff'} />
-          <Text style={styles.btnDarkText}>Sign up with email</Text>
+          <Text style={styles.btnDarkText}>انشاء حساب</Text>
         </TouchableOpacity>
       </Link>
+      <View style={styles.divider} />
       <Link
         href={{
           pathname: '/login',
@@ -37,7 +33,7 @@ const BottomLoginSheet = () => {
         style={[defaultStyles.btn, styles.btnOutline]}
         asChild>
         <TouchableOpacity>
-          <Text style={styles.btnDarkText}>Log in</Text>
+          <Text style={styles.btnDarkText}>تسجيل الدخول</Text>
         </TouchableOpacity>
       </Link>
     </View>
@@ -75,6 +71,11 @@ const styles = StyleSheet.create({
   },
   btnIcon: {
     paddingRight: 6,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: Colors.grey,
+    marginVertical: 10,
   },
 });
 export default BottomLoginSheet;

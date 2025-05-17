@@ -1,6 +1,7 @@
 import Colors from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
+import * as Sentry from 'sentry-expo'; // Import Sentry
 import { TouchableOpacity, View, ActivityIndicator } from 'react-native'; // Import View and ActivityIndicator
 import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
 
@@ -10,6 +11,13 @@ import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
 // Removed RevenueCatProvider import
 // import { RevenueCatProvider } from '@/providers/RevenueCat';
 
+
+// Initialize Sentry
+Sentry.init({
+  dsn: "https://ddd00021c9376aca8befad513da9ec65@o4509334426681345.ingest.de.sentry.io/4509334432186448",
+  enableInExpoDevelopment: true, // Set to true to enable Sentry in development
+  debug: true, // Set to `true` to natively log errors to the console
+});
 
 const Layout = () => {
   const router = useRouter();
@@ -31,40 +39,8 @@ const Layout = () => {
             contentStyle: { backgroundColor: Colors.selected },
           }}>
           <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="(modal)/settings"
-            options={{
-              headerTitle: 'Settings',
-              presentation: 'modal',
-              headerShadowVisible: false,
-              headerStyle: { backgroundColor: Colors.selected },
-              headerRight: () => (
-                <TouchableOpacity
-                  onPress={() => router.dismiss()}
-                  style={{ backgroundColor: Colors.greyLight, borderRadius: 20, padding: 4 }}>
-                  <Ionicons name="close-outline" size={16} color={Colors.grey} />
-                </TouchableOpacity>
-              ),
-            }}
-          />
-          <Stack.Screen
-            name="(modal)/image/[url]"
-            options={{
-              headerTitle: '',
-              presentation: 'fullScreenModal',
-              headerBlurEffect: 'dark',
-              headerStyle: { backgroundColor: 'rgba(0,0,0,0.4)' },
-              headerTransparent: true,
-              headerShadowVisible: false,
-              headerLeft: () => (
-                <TouchableOpacity
-                  onPress={() => router.back()}
-                  style={{ borderRadius: 20, padding: 4 }}>
-                  <Ionicons name="close-outline" size={28} color={'#fff'} />
-                </TouchableOpacity>
-              ),
-            }}
-          />
+          {/* Include the entire (modal) group and set its presentation to modal */}
+          <Stack.Screen name="(modal)" options={{ headerShown: false, presentation: 'modal' }} />
         </Stack>
     //   </SQLiteProvider>
     // </RevenueCatProvider>

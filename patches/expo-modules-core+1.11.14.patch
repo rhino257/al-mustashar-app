@@ -1,0 +1,94 @@
+diff --git a/node_modules/expo-modules-core/android/.gradle/buildOutputCleanup/buildOutputCleanup.lock b/node_modules/expo-modules-core/android/.gradle/buildOutputCleanup/buildOutputCleanup.lock
+new file mode 100644
+index 0000000..9355452
+Binary files /dev/null and b/node_modules/expo-modules-core/android/.gradle/buildOutputCleanup/buildOutputCleanup.lock differ
+diff --git a/node_modules/expo-modules-core/android/.gradle/buildOutputCleanup/cache.properties b/node_modules/expo-modules-core/android/.gradle/buildOutputCleanup/cache.properties
+new file mode 100644
+index 0000000..fce39f5
+--- /dev/null
++++ b/node_modules/expo-modules-core/android/.gradle/buildOutputCleanup/cache.properties
+@@ -0,0 +1,2 @@
++#Sat May 17 18:56:40 AST 2025
++gradle.version=8.3
+diff --git a/node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle b/node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle
+index e1cc7f5..dcca2a7 100644
+--- a/node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle
++++ b/node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle
+@@ -66,28 +66,39 @@ ext.applyKotlinExpoModulesCorePlugin = {
+ 
+ ext.useExpoPublishing = {
+   if (!project.plugins.hasPlugin('maven-publish')) {
+-    apply plugin: 'maven-publish'
++    project.apply plugin: 'maven-publish'
+   }
+ 
+-  afterEvaluate {
++  // Configure AGP publishing first to ensure components are created
++  project.android {
+     publishing {
+-      publications {
+-        release(MavenPublication) {
+-          from components.release
+-        }
+-      }
+-      repositories {
+-        maven {
+-          url = mavenLocal().url
+-        }
++      singleVariant("release") {
++        withSourcesJar()
+       }
+     }
+   }
+ 
+-  android {
+-    publishing {
+-      singleVariant("release") {
+-        withSourcesJar()
++  // Defer the configuration of maven-publish's publications
++  // until AGP has had a chance to create the components.
++  project.pluginManager.withPlugin('com.android.library') {
++    project.afterEvaluate {
++      // Check if the component exists before trying to use it
++      if (project.components.findByName('release')) {
++        project.publishing {
++          publications {
++            release(MavenPublication) {
++              from project.components.release
++              // artifactId = project.name // Optional: if artifactId needs to be set
++            }
++          }
++          repositories {
++            maven {
++              url = project.mavenLocal().url
++            }
++          }
++        }
++      } else {
++        project.logger.warn("ExpoModulesCorePlugin: 'release' component not found for project ${project.name} during publishing setup. Skipping.")
+       }
+     }
+   }
+diff --git a/node_modules/expo-modules-core/android/build.gradle b/node_modules/expo-modules-core/android/build.gradle
+index ffd50ba..d6db4ab 100644
+--- a/node_modules/expo-modules-core/android/build.gradle
++++ b/node_modules/expo-modules-core/android/build.gradle
+@@ -1,4 +1,5 @@
+ import java.nio.file.Paths
++import org.gradle.api.invocation.Gradle // Import for Gradle class
+ 
+ apply plugin: 'com.android.library'
+ apply plugin: 'kotlin-android'
+@@ -34,10 +35,12 @@ buildscript {
+   }
+ 
+   repositories {
++    google() // Added google() repository
+     mavenCentral()
+   }
+ 
+   dependencies {
++    classpath("com.android.tools.build:gradle:${rootProject.ext.has('agpVersion') ? rootProject.ext.get('agpVersion') : '8.2.2'}") // Ensure AGP is on classpath
+     classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${getKotlinVersion()}")
+   }
+ }

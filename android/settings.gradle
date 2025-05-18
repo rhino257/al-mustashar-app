@@ -1,5 +1,17 @@
 // android/settings.gradle
 
+pluginManagement { // <-- THIS MUST BE THE VERY FIRST BLOCK
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+    // This makes plugins from @react-native/gradle-plugin resolvable by ID
+    // if they are applied using the plugins {} block in build.gradle.
+    // It also makes the included build's artifacts available.
+    includeBuild(new File(["node", "--print", "require.resolve('@react-native/gradle-plugin/package.json')"].execute(null, rootDir).text.trim()).getParentFile().toString())
+}
+
 // Apply the React Native settings plugin.
 // This plugin is used to configure the build for React Native projects.
 apply from: new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim(), "../../../react-native-gradle-plugin/src/main/settings/settings-plugin.gradle")
@@ -15,8 +27,6 @@ applyExpoProperties(settings)
 
 // --- Dev Client specific setup - include if you use expo-dev-client ---
 // If you are using expo-dev-client, the following line applies its specific Gradle configurations.
-// You might need to adjust the path if your expo-dev-client version structures things differently,
-// but this is a common path.
 def devClientGradle = new File(["node", "--print", "require.resolve('expo-dev-client/package.json')"].execute(null, rootDir).text.trim(), "../android/expo-dev-client.gradle")
 if (devClientGradle.exists()) {
     apply from: devClientGradle
@@ -32,14 +42,11 @@ include ':app'
 useExpoModules(settings)
 
 // Set the root project name.
+// Based on previous error logs, the project name is 'Chatgpt'.
 rootProject.name = 'Chatgpt'
 
-// If you have other custom native modules included as separate projects, you would list them here:
-// e.g.
-// include ':my-custom-library'
-// project(':my-custom-library').projectDir = new File(rootProject.projectDir, '../node_modules/my-custom-library/android')
-
-// Standard dependency resolution for the project (from your original file, looks okay)
+// Standard dependency resolution for the project
+// This block should come after pluginManagement and initial plugin applications.
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
@@ -70,12 +77,8 @@ dependencyResolutionManagement {
     }
 }
 
-// pluginManagement block from your original file (looks okay for recent RN versions)
-pluginManagement {
-    repositories {
-        google()
-        mavenCentral()
-        gradlePluginPortal()
-    }
-    includeBuild(new File(["node", "--print", "require.resolve('@react-native/gradle-plugin/package.json')"].execute(null, rootDir).text.trim()).getParentFile().toString())
-}
+// If you have other custom native modules included as separate projects, you would list them here,
+// typically after 'include ":app"' and before or after 'useExpoModules' depending on their nature.
+// e.g.
+// include ':my-custom-library'
+// project(':my-custom-library').projectDir = new File(rootProject.projectDir, '../node_modules/my-custom-library/android')

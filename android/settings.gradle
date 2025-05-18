@@ -1,26 +1,45 @@
 // android/settings.gradle
 
-pluginManagement {
-    repositories {
-        google()
-        mavenCentral()
-        gradlePluginPortal()
-    }
-    // This makes plugins from @react-native/gradle-plugin resolvable by ID
-    // if they are applied using the plugins {} block.
-    // It also makes the included build's artifacts available.
-    includeBuild(new File(["node", "--print", "require.resolve('@react-native/gradle-plugin/package.json')"].execute(null, rootDir).text.trim()).getParentFile().toString())
+// Apply the React Native settings plugin.
+// This plugin is used to configure the build for React Native projects.
+apply from: new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim(), "../../../react-native-gradle-plugin/src/main/settings/settings-plugin.gradle")
+applySettingsPlugin(settings)
+
+// Apply Expo-specific Gradle utilities.
+// This script provides helper methods like useExpoModules and applyExpoProperties.
+apply from: new File(["node", "--print", "require.resolve('@expo/gradle-utils/package.json')"].execute(null, rootDir).text.trim(), "../../../gradle-utils.gradle")
+
+// Apply project-specific build properties from expo-build-properties.json.
+// This allows for easier configuration of native build properties.
+applyExpoProperties(settings)
+
+// --- Dev Client specific setup - include if you use expo-dev-client ---
+// If you are using expo-dev-client, the following line applies its specific Gradle configurations.
+// You might need to adjust the path if your expo-dev-client version structures things differently,
+// but this is a common path.
+def devClientGradle = new File(["node", "--print", "require.resolve('expo-dev-client/package.json')"].execute(null, rootDir).text.trim(), "../android/expo-dev-client.gradle")
+if (devClientGradle.exists()) {
+    apply from: devClientGradle
 }
+// --- End Dev Client specific setup ---
 
-// Apply React Native specific root project configurations.
-// This assumes @react-native/gradle-plugin will make 'com.facebook.react.rootproject' available
-// and potentially auto-apply it or make it available for the root project.
-// If this plugin ID is what's missing, this apply might help Gradle find it via the includedBuild.
-// However, often this is applied *by* the RN plugin itself.
-// For now, we won't explicitly apply it here, relying on the includeBuild.
-// The error "Plugin with id 'com.facebook.react.rootproject' not found." suggests an implicit application attempt.
+// Include the main application project.
+include ':app'
 
-// Standard dependency resolution for the project
+// Apply Expo modules autolinking.
+// This MUST be called after 'include ":app"' and after any plugins
+// (like expo-dev-client) that might provide modules or need to be configured first.
+useExpoModules(settings)
+
+// Set the root project name.
+rootProject.name = 'Chatgpt'
+
+// If you have other custom native modules included as separate projects, you would list them here:
+// e.g.
+// include ':my-custom-library'
+// project(':my-custom-library').projectDir = new File(rootProject.projectDir, '../node_modules/my-custom-library/android')
+
+// Standard dependency resolution for the project (from your original file, looks okay)
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
@@ -38,9 +57,6 @@ dependencyResolutionManagement {
         // maven { url 'https://www.jitpack.io' }
     }
     // React Native Version Catalog (if your project uses it)
-    // If this file doesn't exist or isn't used, this block can be commented out.
-    // Check if "node_modules/react-native/gradle/libs.versions.toml" exists.
-    // If it doesn't, comment out the 'reactAndroidLibs' block.
     def rnLibsVersionsToml = new File(new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).getParentFile(), "gradle/libs.versions.toml")
     if (rnLibsVersionsToml.exists()) {
         versionCatalogs {
@@ -49,42 +65,17 @@ dependencyResolutionManagement {
             }
         }
     } else {
-        println "INFO: React Native libs.versions.toml not found, skipping version catalog setup in settings.gradle."
+        // This println is fine if the file genuinely doesn't exist for your RN version
+        // println "INFO: React Native libs.versions.toml not found, skipping version catalog setup in settings.gradle."
     }
 }
 
-rootProject.name = 'Chatgpt' // Ensure this matches your actual app display name if different
-
-// Apply Expo specific settings AFTER basic project and RN plugin setup
-def expoPackageDir = new File(["node", "--print", "require.resolve('expo/package.json')"].execute(null, rootDir).text.trim()).getParentFile()
-try {
-    println "INFO: Attempting to apply Expo autolinking.gradle..."
-    apply from: new File(expoPackageDir, "scripts/autolinking.gradle")
-    println "INFO: Successfully applied Expo autolinking.gradle. Attempting to call useExpoModules..."
-    useExpoModules(settings)
-    println "INFO: Successfully called useExpoModules."
-} catch (any) {
-    println "ERROR: Exception occurred during Expo autolinking setup in settings.gradle."
-    println "ERROR_MESSAGE: " + any.getMessage()
-    println "ERROR_STACKTRACE: " + any.getStackTrace().join("\n")
-    throw any // Re-throw the exception to ensure the build still fails but we see our custom log
+// pluginManagement block from your original file (looks okay for recent RN versions)
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+    includeBuild(new File(["node", "--print", "require.resolve('@react-native/gradle-plugin/package.json')"].execute(null, rootDir).text.trim()).getParentFile().toString())
 }
-
-include ':app'
-
-// Conditional application of remote Gradle script for Expo (if applicable for your project)
-// if (settings.hasProperty("android.expo.applyRemoteGradle")) {
-//     apply from: settings.android.expo.applyRemoteGradle
-// }
-
-// The conditional logic for RN < 75 applying native_modules.gradle
-// might be redundant with modern Expo autolinking, let's keep it commented
-// out for now to reduce complexity. If native modules are missed, we can re-evaluate.
-/*
-def getRNMinorVersion() {
-  // ... (implementation) ...
-}
-if (getRNMinorVersion() < 75) {
-  // ... (apply native_modules.gradle) ...
-}
-*/

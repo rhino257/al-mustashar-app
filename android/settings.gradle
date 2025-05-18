@@ -14,7 +14,7 @@ pluginManagement { // <-- THIS MUST BE THE VERY FIRST BLOCK
 
 // Apply the React Native settings plugin.
 // This plugin is used to configure the build for React Native projects.
-apply from: new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim(), "../../../react-native-gradle-plugin/src/main/settings/settings-plugin.gradle")
+apply from: new File(new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).getParentFile(), "react-native-gradle-plugin/src/main/settings/settings-plugin.gradle")
 applySettingsPlugin(settings)
 
 // Apply Expo-specific Gradle utilities.

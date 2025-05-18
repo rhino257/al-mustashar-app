@@ -12,10 +12,15 @@ pluginManagement { // <-- THIS MUST BE THE VERY FIRST BLOCK
     includeBuild(new File(["node", "--print", "require.resolve('@react-native/gradle-plugin/package.json')"].execute(null, rootDir).text.trim()).getParentFile().toString())
 }
 
-// Apply the React Native settings plugin.
-// This plugin is used to configure the build for React Native projects.
-apply from: new File(new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).getParentFile(), "react-native-gradle-plugin/src/main/settings/settings-plugin.gradle")
-applySettingsPlugin(settings)
+// The includeBuild in pluginManagement should make the @react-native/gradle-plugin available.
+// The settings plugin is often applied via a helper or by applying its specific script from that included build.
+// The 'applySettingsPlugin(settings)' call itself is what we want to work.
+// The issue is that the script that *defines* applySettingsPlugin might not be found.
+// Let's ensure we apply the correct script that defines this helper or directly apply the plugin.
+
+// This line is what `applySettingsPlugin` often relies on, from the @react-native/gradle-plugin
+apply from: new File(new File(["node", "--print", "require.resolve('@react-native/gradle-plugin/package.json')"].execute(null, rootDir).text.trim()).getParentFile(), "src/main/settings/apply-settings-plugin.gradle")
+applySettingsPlugin(settings) // Now try calling the helper again
 
 // Apply Expo-specific Gradle utilities.
 // This script provides helper methods like useExpoModules and applyExpoProperties.

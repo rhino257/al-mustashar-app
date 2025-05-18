@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Chatgpt",
-    "slug": "chatgpt",
+    "slug": "consultor",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -83,8 +83,9 @@
         "origin": false
       },
       "eas": {
-        "projectId": "917339ea-3d77-443b-a9d3-aaec7b929433"
+        "projectId": "6600fd06-0348-4e4d-a531-8b0aca3e3f6e"
       }
-    }
+    },
+    "owner": "rhino27"
   }
 }

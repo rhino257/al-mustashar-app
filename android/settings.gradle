@@ -12,8 +12,7 @@ pluginManagement {
 
 // Apply the React Native settings plugin functionalities.
 // The includeBuild above should make the necessary components available for this call.
-apply from: new File(rootProject.projectDir, "../node_modules/@react-native/gradle-plugin/src/main/settings/react-native-settings.gradle")
-applySettingsPlugin(settings)
+apply plugin: 'com.facebook.react.settings'
 
 // Apply Expo-specific Gradle utilities.
 apply from: new File(["node", "--print", "require.resolve('@expo/gradle-utils/package.json')"].execute(null, rootDir).text.trim(), "../../../gradle-utils.gradle")

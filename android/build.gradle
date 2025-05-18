@@ -1,0 +1,47 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+    ext {
+        buildToolsVersion = findProperty('android.buildToolsVersion') ?: '34.0.0'
+        minSdkVersion = Integer.parseInt(findProperty('android.minSdkVersion') ?: '23')
+        compileSdkVersion = Integer.parseInt(findProperty('android.compileSdkVersion') ?: '34')
+        targetSdkVersion = Integer.parseInt(findProperty('android.targetSdkVersion') ?: '34')
+        // Ensure kotlinVersion matches the plugin version we intend to use.
+        // The feedback suggested 1.9.22, aligning with React Native's libs.versions.toml.
+        kotlinVersion = findProperty('android.kotlinVersion') ?: '1.9.22' 
+        
+        ndkVersion = findProperty('android.ndkVersion') ?: "26.1.10909125"
+    }
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        // Android Gradle Plugin version
+        classpath('com.android.tools.build:gradle:8.5.0') // Upgraded for Gradle 8.8 compatibility
+        // Kotlin Gradle Plugin version, using the ext variable
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
+        
+        // REMOVED: classpath('com.facebook.react:react-native-gradle-plugin:0.73.4')
+        // This plugin is now provided by the includeBuild in settings.gradle
+    }
+}
+
+apply plugin: "com.facebook.react.rootproject"
+
+allprojects {
+    repositories {
+        mavenCentral() // Ensure common repos are available
+        google()
+        maven {
+            // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm
+            url "$rootDir/../node_modules/react-native/android"
+        }
+        maven {
+            // Android JSC is installed from npm
+            url "$rootDir/../node_modules/jsc-android/dist"
+        }
+        // JitPack (if needed by any dependencies, was in original allprojects)
+        maven { url 'https://www.jitpack.io' }
+    }
+}

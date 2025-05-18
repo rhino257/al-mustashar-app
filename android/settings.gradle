@@ -1,0 +1,90 @@
+// android/settings.gradle
+
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+    // This makes plugins from @react-native/gradle-plugin resolvable by ID
+    // if they are applied using the plugins {} block.
+    // It also makes the included build's artifacts available.
+    includeBuild(new File(["node", "--print", "require.resolve('@react-native/gradle-plugin/package.json')"].execute(null, rootDir).text.trim()).getParentFile().toString())
+}
+
+// Apply React Native specific root project configurations.
+// This assumes @react-native/gradle-plugin will make 'com.facebook.react.rootproject' available
+// and potentially auto-apply it or make it available for the root project.
+// If this plugin ID is what's missing, this apply might help Gradle find it via the includedBuild.
+// However, often this is applied *by* the RN plugin itself.
+// For now, we won't explicitly apply it here, relying on the includeBuild.
+// The error "Plugin with id 'com.facebook.react.rootproject' not found." suggests an implicit application attempt.
+
+// Standard dependency resolution for the project
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+        // React Native Local Maven repository
+        maven {
+            url "$rootDir/../node_modules/react-native/android"
+        }
+        // JSC Android Local Maven repository
+        maven {
+            url "$rootDir/../node_modules/jsc-android/dist"
+        }
+        // JitPack (if needed by any dependencies)
+        // maven { url 'https://www.jitpack.io' }
+    }
+    // React Native Version Catalog (if your project uses it)
+    // If this file doesn't exist or isn't used, this block can be commented out.
+    // Check if "node_modules/react-native/gradle/libs.versions.toml" exists.
+    // If it doesn't, comment out the 'reactAndroidLibs' block.
+    def rnLibsVersionsToml = new File(new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).getParentFile(), "gradle/libs.versions.toml")
+    if (rnLibsVersionsToml.exists()) {
+        versionCatalogs {
+            reactAndroidLibs {
+                from(files(rnLibsVersionsToml.getAbsolutePath()))
+            }
+        }
+    } else {
+        println "INFO: React Native libs.versions.toml not found, skipping version catalog setup in settings.gradle."
+    }
+}
+
+rootProject.name = 'Chatgpt' // Ensure this matches your actual app display name if different
+
+// Apply Expo specific settings AFTER basic project and RN plugin setup
+def expoPackageDir = new File(["node", "--print", "require.resolve('expo/package.json')"].execute(null, rootDir).text.trim()).getParentFile()
+try {
+    println "INFO: Attempting to apply Expo autolinking.gradle..."
+    apply from: new File(expoPackageDir, "scripts/autolinking.gradle")
+    println "INFO: Successfully applied Expo autolinking.gradle. Attempting to call useExpoModules..."
+    useExpoModules(settings)
+    println "INFO: Successfully called useExpoModules."
+} catch (any) {
+    println "ERROR: Exception occurred during Expo autolinking setup in settings.gradle."
+    println "ERROR_MESSAGE: " + any.getMessage()
+    println "ERROR_STACKTRACE: " + any.getStackTrace().join("\n")
+    throw any // Re-throw the exception to ensure the build still fails but we see our custom log
+}
+
+include ':app'
+
+// Conditional application of remote Gradle script for Expo (if applicable for your project)
+// if (settings.hasProperty("android.expo.applyRemoteGradle")) {
+//     apply from: settings.android.expo.applyRemoteGradle
+// }
+
+// The conditional logic for RN < 75 applying native_modules.gradle
+// might be redundant with modern Expo autolinking, let's keep it commented
+// out for now to reduce complexity. If native modules are missed, we can re-evaluate.
+/*
+def getRNMinorVersion() {
+  // ... (implementation) ...
+}
+if (getRNMinorVersion() < 75) {
+  // ... (apply native_modules.gradle) ...
+}
+*/

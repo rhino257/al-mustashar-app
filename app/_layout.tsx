@@ -6,6 +6,24 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext'; // Import AuthPr
 import { Ionicons } from '@expo/vector-icons';
 import { ActivityIndicator, TouchableOpacity, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { configureReanimatedLogger } from 'react-native-reanimated';
+import * as Sentry from "@sentry/react-native"; // Import Sentry
+
+// configureReanimatedLogger({ disableStrict: true }); // Removed as 'disableStrict' is not a valid property
+
+// Initialize Sentry as early as possible
+Sentry.init({
+  dsn: "https://ddd00021c9376aca8befad513da9ec65@o4509334426681345.ingest.de.sentry.io/4509334432186448", // Your Sentry DSN
+  // Set tracesSampleRate to 1.0 to capture 100% of transactions for performance monitoring.
+  // We recommend adjusting this value in production.
+  tracesSampleRate: 1.0,
+  // Session Replay configuration. Note: Specific integration details may vary by Sentry SDK version.
+  // integrations: [
+  //   Sentry.replayIntegration()
+  // ],
+  // replaysSessionSampleRate: 0.1, // This sets the sample rate at 10%.
+  // replaysOnErrorSampleRate: 1.0 // If you're not already sampling the entire session, change the sample rate to 100% when sampling sessions where errors occur.
+});
 
 const CLERK_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY; // This variable is no longer used and can be removed later
 

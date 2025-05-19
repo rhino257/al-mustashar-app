@@ -250,14 +250,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     marginVertical: 5,
     alignItems: 'flex-end', // Changed to flex-end to align avatar with bottom of bubble
+    width: '100%', // Ensure the row takes full width
   },
   userMessageContainer: {
-    justifyContent: 'flex-end',
-    marginLeft: 50,
+    justifyContent: 'flex-start', // For RTL, flex-start is right
+    // marginLeft: 50, // Removed
   },
   botMessageContainer: {
-    justifyContent: 'flex-start',
-    marginRight: 50,
+    justifyContent: 'flex-end', // For RTL, flex-end is left
+    // marginRight: 50, // Removed
   },
   bubble: {
     padding: 10,
@@ -266,19 +267,21 @@ const styles = StyleSheet.create({
   },
   userBubble: {
     backgroundColor: Colors.chatgptTextField, // Use ChatGPT text field color
-    alignSelf: 'flex-end',
+    alignSelf: 'flex-start',
   },
   botBubble: {
     // backgroundColor: Colors.lightGray, // Removed background color
-    alignSelf: 'flex-start',
+    alignSelf: 'flex-end',
   },
   userMessageText: {
     color: '#fff',
     fontSize: 16,
+    textAlign: 'right',
   },
   botMessageText: { // Added back the missing style
     color: Colors.chatgptText,
     fontSize: 16,
+    textAlign: 'right',
   },
   image: {
     width: 200,

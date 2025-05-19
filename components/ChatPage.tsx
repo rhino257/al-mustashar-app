@@ -386,7 +386,7 @@ const ChatPage = () => {
           // --- 2. Assign Ref ---
           ref={listRef}
           data={messages}
-          renderItem={({ item }) => <ChatMessage {...item} />}
+          renderItem={({ item: { key, ...restOfItem } }) => <ChatMessage key={key} {...restOfItem} />}
           estimatedItemSize={100}
           contentContainerStyle={{ paddingTop: 30, paddingBottom: 150 }}
           keyboardDismissMode="on-drag"

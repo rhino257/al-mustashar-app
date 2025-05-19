@@ -15,7 +15,7 @@ const MainSettingsScreen = () => {
   const featureUnavailableTimerRef = React.useRef<NodeJS.Timeout | null>(null);
   // activePopupCoords now only needs y and height, mirroring the drawer
   const [activePopupCoords, setActivePopupCoords] = useState<{ y: number; height: number } | null>(null);
-  const itemRefs = React.useRef<{ [key: string]: TouchableOpacity | View | null }>({});
+  const itemRefs = React.useRef<{ [key: string]: React.ElementRef<typeof TouchableOpacity> | View | null }>({});
 
   if (!user) {
     return (
@@ -76,14 +76,17 @@ const MainSettingsScreen = () => {
         const isActuallyNavigable = isOriginallyNavigable && !isUnderDevelopment;
 
         const RowContent = (
-          <View style={{ flexDirection: 'row-reverse', alignItems: 'center', flex: 1 }}>
-            <Ionicons name={option.icon as any} size={24} color={isUnderDevelopment ? Colors.grey : Colors.white} style={styles.optionIcon} />
+          // flexDirection is 'row' to have TextBlock on the left and MainIcon on the right (visually L-R)
+          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+            {/* This View (TextBlock) needs flex: 1 to push the MainIcon to the right edge of RowContent */}
             <View style={{ flex: 1 }}>
               <Text style={[styles.optionText, isUnderDevelopment && styles.disabledOptionText]}>{option.title}</Text>
               {(typeof subtextValue === 'string' && subtextValue.length > 0) && (
                 <Text style={[styles.optionSubtext, isUnderDevelopment && styles.disabledOptionText]}>{subtextValue}</Text>
               )}
             </View>
+            {/* MainIcon is the second child, will appear on the right of TextBlock */}
+            <Ionicons name={option.icon as any} size={24} color={isUnderDevelopment ? Colors.grey : Colors.white} style={styles.optionIcon} />
           </View>
         );
 
@@ -91,7 +94,7 @@ const MainSettingsScreen = () => {
           if (isUnderDevelopment) {
             const currentItemRef = itemRefs.current[option.id];
             if (currentItemRef && typeof currentItemRef.measureInWindow === 'function') {
-              currentItemRef.measureInWindow((x, yWindow, widthItem, heightItem) => {
+              currentItemRef.measureInWindow((x: number, yWindow: number, widthItem: number, heightItem: number) => {
                 // Adjust y by safeAreaTop, same as drawer logic for y - top
                 handleFeatureUnavailable({ y: yWindow - safeAreaTop, height: heightItem });
               });
@@ -126,10 +129,10 @@ const MainSettingsScreen = () => {
       })}
 
       <TouchableOpacity style={[styles.optionRow, styles.logoutButton]} onPress={handleSignOut} activeOpacity={0.7}>
-        <Ionicons name="log-out-outline" size={24} color={Colors.danger} style={styles.optionIcon} />
         <View style={{ flex: 1 }}>
           <Text style={[styles.optionText, styles.logoutButtonText]}>تسجيل الخروج</Text>
         </View>
+        <Ionicons name="log-out-outline" size={24} color={Colors.danger} style={styles.optionIcon} />
       </TouchableOpacity>
 
       {/* Popup Rendering - Applying Drawer's styling and positioning principles */}
@@ -165,7 +168,7 @@ const styles = StyleSheet.create({
   },
   optionText: { fontSize: 17, color: Colors.white, textAlign: 'right' },
   optionSubtext: { fontSize: 14, color: Colors.white, textAlign: 'right', marginTop: 3 },
-  optionIcon: { marginLeft: 15 },
+  optionIcon: { marginLeft: 15 }, // Changed from marginRight to marginLeft for RTL
   logoutButton: {},
   logoutButtonText: { color: Colors.danger }, // Ensure Colors.danger is defined
   disabledOptionRow: { opacity: 0.6 }, // Ensure Colors.grey is light enough (e.g. #9E9E9E)

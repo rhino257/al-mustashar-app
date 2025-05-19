@@ -95,8 +95,25 @@ const MessageInput: React.FC<Props> = (props) => {
 
         {/* Icon Row below TextInput */}
         <View style={styles.iconRow}>
-          {/* First iconGroup (RTL Left side) */}
+          {/* First iconGroup (RTL Left side) - Now contains Plus Icon */}
           <View style={styles.iconGroup}>
+            {/* Plus/Add Icon */}
+            <TouchableOpacity style={styles.iconButton} onPress={handleUploadFeatureUnavailable}>
+              <Ionicons name="add-circle-outline" size={28} color={Colors.chatgptText} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Second iconGroup (RTL Right side) - Now contains Lamp then Mic/Send */}
+          <View style={styles.iconGroup}>
+            {/* Lamp Icon */}
+            <TouchableOpacity style={styles.iconButton} onPress={handleLampPress}>
+              <Ionicons
+                name={isLampSelected ? 'bulb' : 'bulb-outline'}
+                size={24}
+                color={isLampSelected ? Colors.chatgptText : Colors.chatgptText} // Or active color
+              />
+            </TouchableOpacity>
+
             {/* THIS IS WHERE THE isSending LOGIC GOES */}
             {/* THIS IS WHERE THE isSending LOGIC GOES */}
             {/* THIS IS WHERE THE isSending LOGIC GOES */}
@@ -122,23 +139,6 @@ const MessageInput: React.FC<Props> = (props) => {
                 />
               </TouchableOpacity>
             )}
-
-            {/* Lamp Icon (remains next to the block above) */}
-            <TouchableOpacity style={styles.iconButton} onPress={handleLampPress}>
-              <Ionicons
-                name={isLampSelected ? 'bulb' : 'bulb-outline'}
-                size={24}
-                color={isLampSelected ? Colors.chatgptText : Colors.chatgptText} // Or active color
-              />
-            </TouchableOpacity>
-          </View>
-
-          {/* Second iconGroup (RTL Right side) */}
-          <View style={styles.iconGroup}>
-            {/* Plus/Add Icon */}
-            <TouchableOpacity style={styles.iconButton} onPress={handleUploadFeatureUnavailable}>
-              <Ionicons name="add-circle-outline" size={28} color={Colors.chatgptText} />
-            </TouchableOpacity>
           </View>
         </View>
       </View>

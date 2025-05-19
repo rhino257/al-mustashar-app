@@ -15,6 +15,7 @@ import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
 // Initialize Sentry
 Sentry.init({
   dsn: "https://ddd00021c9376aca8befad513da9ec65@o4509334426681345.ingest.de.sentry.io/4509334432186448",
+  enableNative: false, // Disable Sentry Native SDK
   enableInExpoDevelopment: true, // Set to true to enable Sentry in development
   debug: true, // Set to `true` to natively log errors to the console
 });

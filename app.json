@@ -67,14 +67,7 @@
           "isAccessMediaLocationEnabled": true
         }
       ],
-      "sentry-expo",
-      [
-        "expo-splash-screen",
-        {
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
-        }
-      ]
+      "sentry-expo"
     ],
     "experiments": {
       "typedRoutes": true

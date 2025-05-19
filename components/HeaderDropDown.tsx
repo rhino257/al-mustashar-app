@@ -69,13 +69,13 @@ const HeaderDropDown = ({ title, selected, items, onSelect }: Props) => {
         sideOffset={0}>
         {items.map((item) => (
           <DropdownMenu.Item key={item.key} onSelect={() => onSelect(item.key)}>
-            <DropdownMenu.ItemTitle>{item.title}</DropdownMenu.ItemTitle>
             <DropdownMenu.ItemIcon
               ios={{
                 name: item.icon,
                 pointSize: 18,
               }}
             />
+            <DropdownMenu.ItemTitle>{item.title}</DropdownMenu.ItemTitle>
           </DropdownMenu.Item>
         ))}
       </DropdownMenu.Content>

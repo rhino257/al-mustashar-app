@@ -119,7 +119,7 @@ const navigateToSettings = () => {
 
 return (
 <View style={{ flex: 1, marginTop: top }}>
-<View style={{ backgroundColor: Colors.chatgptBackground, paddingBottom: 10 }}>
+<View style={{ backgroundColor: Colors.chatgptBackground, paddingBottom: 10, paddingTop: 10 }}>
 <View style={styles.searchSection}>
 <Ionicons style={styles.searchIcon} name="search" size={20} color={Colors.greyLight} />
 <TextInput
@@ -265,112 +265,109 @@ underlineColorAndroid="transparent"
 };
 
 const Layout = () => {
-const navigation = useNavigation();
-const dimensions = useWindowDimensions();
-// Removed useRevenueCat hook call
-const router = useRouter();
+  const dimensions = useWindowDimensions();
+  // Removed unused router and navigation hooks from Layout scope,
+  // navigation will be passed to options functions.
 
-return (
-<Drawer
-drawerContent={(props) => <CustomDrawerContent {...props} dimensions={dimensions} />}
-screenOptions={{
-headerLeft: () => (
-<TouchableOpacity
-onPress={() => navigation.dispatch(DrawerActions.toggleDrawer)}
-style={{ marginLeft: 16 }}>
-<FontAwesome6 name="grip-lines" size={20} color="#ffffff" />
-</TouchableOpacity>
-),
-headerStyle: {
-backgroundColor: Colors.chatgptBackground,
-},
-headerTintColor: '#ffffff', // Set header text and icon color to white
-headerShadowVisible: false,
-drawerActiveBackgroundColor: '#212121', // Set active drawer item background color to hex code
-drawerActiveTintColor: '#ffffff', // Set active drawer item text color to white
-drawerInactiveTintColor: '#ffffff', // Set inactive drawer item text color to white
-overlayColor: 'rgba(0, 0, 0, 0.2)',
-drawerItemStyle: { borderRadius: 12 },
-// Removed default drawerLabelStyle: { textAlign: 'right' },
-drawerPosition: 'right',
-drawerStyle: { width: dimensions.width * 0.86, backgroundColor: Colors.chatgptBackground },
-}}>
-<Drawer.Screen
-name="(chat)/new"
-getId={() => Math.random().toString()}
-options={{
-// title: 'المستشار', // Removed title
-headerTitle: '',
-drawerLabel: () => ( // Custom drawerLabel for RTL
-<View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12 }}>
-<View style={[styles.item, { backgroundColor: '#000' }]}>
-<Image source={require('@/assets/images/logo.png')} style={styles.btnImage} />
-</View>
-<Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>المستشار</Text>
-</View>
-),
-drawerIcon: () => null, // Hide default icon
-headerLeft: () => (
-<Link href={'/(auth)/(drawer)/(chat)/new'} push asChild>
-<TouchableOpacity>
-<Ionicons
-name="create-outline"
-size={24}
-color="#ffffff"
-style={{ marginLeft: 16 }}
-/>
-</TouchableOpacity>
-</Link>
-),
-headerRight: () => (
-<View style={{ flexDirection: 'row', alignItems: 'center' }}>
-<Text style={styles.headerTitle}>المستشار</Text>
-<TouchableOpacity
-onPress={() => navigation.dispatch(DrawerActions.toggleDrawer)}
-style={{ marginRight: 16, marginLeft: 10 }}>
-<FontAwesome6 name="grip-lines" size={20} color="#ffffff" />
-</TouchableOpacity>
-</View>
-),
-}}
-/>
-<Drawer.Screen
-name="(chat)/[id]"
-options={{
-headerTitle: '',
-drawerItemStyle: {
-display: 'none',
-},
-headerLeft: () => (
-<Link href={'/(auth)/(drawer)/(chat)/new'} push asChild>
-<TouchableOpacity>
-<Ionicons
-name="create-outline"
-size={24}
-color="#ffffff"
-style={{ marginLeft: 16 }}
-/>
-</TouchableOpacity>
-</Link>
-),
-headerRight: () => (
-<View style={{ flexDirection: 'row', alignItems: 'center' }}>
-<Text style={styles.headerTitle}>المستشار</Text>
-<TouchableOpacity
-onPress={() => navigation.dispatch(DrawerActions.toggleDrawer)}
-style={{ marginRight: 16, marginLeft: 10 }}>
-<FontAwesome6 name="grip-lines" size={20} color="#ffffff" />
-</TouchableOpacity>
-</View>
-),
-}}
-/>
+  return (
+    <Drawer
+      drawerContent={(props) => <CustomDrawerContent {...props} dimensions={dimensions} />}
+      screenOptions={({ navigation }) => ({ // screenOptions is now a function
+        headerLeft: () => (
+          <TouchableOpacity
+            onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())} // Use scoped navigation
+            style={{ marginLeft: 16 }}>
+            <FontAwesome6 name="grip-lines" size={20} color="#ffffff" />
+          </TouchableOpacity>
+        ),
+        headerStyle: {
+          backgroundColor: Colors.chatgptBackground,
+        },
+        headerTintColor: '#ffffff', // Set header text and icon color to white
+        headerShadowVisible: false,
+        drawerActiveBackgroundColor: '#212121', // Set active drawer item background color to hex code
+        drawerActiveTintColor: '#ffffff', // Set active drawer item text color to white
+        drawerInactiveTintColor: '#ffffff', // Set inactive drawer item text color to white
+        overlayColor: 'rgba(0, 0, 0, 0.2)',
+        drawerItemStyle: { borderRadius: 12 },
+        drawerPosition: 'right',
+        drawerStyle: { width: dimensions.width * 0.86, backgroundColor: Colors.chatgptBackground },
+      })}>
+      <Drawer.Screen
+        name="(chat)/new"
+        getId={() => Math.random().toString()}
+        options={({ navigation }) => ({ // options is now a function
+          headerTitle: '',
+          drawerLabel: () => ( // Custom drawerLabel for RTL
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={[styles.item, { backgroundColor: '#000' }]}>
+                <Image source={require('@/assets/images/logo.png')} style={styles.btnImage} />
+              </View>
+              <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>المستشار</Text>
+            </View>
+          ),
+          drawerIcon: () => null, // Hide default icon
+          headerRight: () => ( // New message icon on the RIGHT
+            <Link href={'/(auth)/(drawer)/(chat)/new'} push asChild>
+              <TouchableOpacity>
+                <Ionicons
+                  name="create-outline"
+                  size={24}
+                  color="#ffffff"
+                  style={{ marginRight: 16 }} // Adjusted margin for right side
+                />
+              </TouchableOpacity>
+            </Link>
+          ),
+          headerLeft: () => ( // Menu icon and Title on the LEFT
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity
+                onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())} // Use scoped navigation
+                style={{ marginLeft: 16, marginRight: 10 }}>
+                <FontAwesome6 name="grip-lines" size={20} color="#ffffff" />
+              </TouchableOpacity>
+              <Text style={styles.headerTitle}>المستشار</Text>
+            </View>
+          ),
+        })}
+      />
+      <Drawer.Screen
+        name="(chat)/[id]"
+        options={({ navigation }) => ({ // options is now a function
+          headerTitle: '',
+          drawerItemStyle: {
+            display: 'none',
+          },
+          headerRight: () => ( // New message icon on the RIGHT
+            <Link href={'/(auth)/(drawer)/(chat)/new'} push asChild>
+              <TouchableOpacity>
+                <Ionicons
+                  name="create-outline"
+                  size={24}
+                  color="#ffffff"
+                  style={{ marginRight: 16 }} // Adjusted margin for right side
+                />
+              </TouchableOpacity>
+            </Link>
+          ),
+          headerLeft: () => ( // Menu icon and Title on the LEFT
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity
+                onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())} // Use scoped navigation
+                style={{ marginLeft: 16, marginRight: 10 }}>
+                <FontAwesome6 name="grip-lines" size={20} color="#ffffff" />
+              </TouchableOpacity>
+              <Text style={styles.headerTitle}>المستشار</Text>
+            </View>
+          ),
+        })}
+      />
 <Drawer.Screen
 name="dalle"
 options={{
 // title: 'تحويل الملفات', // Removed title
 drawerLabel: () => ( // Custom drawerLabel for RTL
-<View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12 }}>
+<View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
 <View style={[styles.item, { backgroundColor: '#000' }]}>
 <Image source={require('@/assets/images/dalle.png')} style={styles.dallEImage} />
 </View>
@@ -385,7 +382,7 @@ name="explore"
 options={{
 // title: 'استكشف المستشار', // Removed title
 drawerLabel: () => ( // Custom drawerLabel for RTL
-<View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 12 }}>
+<View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
 <View
 style={[
 styles.item,
@@ -414,7 +411,7 @@ searchSection: {
 marginHorizontal: 16,
 borderRadius: 10,
 height: 34,
-flexDirection: 'row-reverse',
+flexDirection: 'row',
 justifyContent: 'center',
 alignItems: 'center',
 backgroundColor: Colors.chatgptTextField, // Set search field background color

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Chatgpt",
+    "name": "المستشار",
     "slug": "consultor",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -9,15 +9,17 @@
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/images/splashscreen_logo.png",
-      "resizeMode": "contain",
+      "resizeMode": "cover",
       "backgroundColor": "#ffffff"
     },
     "assetBundlePatterns": [
       "**/*"
     ],
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.supersimon.chatgpt",
+      "newArchEnabled": true,
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Allow $(PRODUCT_NAME) to access your photos.",
         "NSPhotoLibraryAddUsageDescription": "Allow $(PRODUCT_NAME) to save photos."
@@ -25,10 +27,11 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#ffffff"
       },
       "package": "com.supersimon.chatgpt",
+      "newArchEnabled": true,
       "permissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
@@ -77,9 +80,9 @@
         "origin": false
       },
       "eas": {
-        "projectId": "6600fd06-0348-4e4d-a531-8b0aca3e3f6e"
+        "projectId": "45be78aa-25e9-450a-9ede-6675e738c67f"
       }
     },
-    "owner": "rhino27"
+    "owner": "rhino276"
   }
 }

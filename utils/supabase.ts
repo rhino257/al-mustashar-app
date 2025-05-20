@@ -1,9 +1,9 @@
 import 'react-native-url-polyfill/auto';
-import { createClient, SupportedStorage } from '@supabase/supabase-js';
+import { SupportedStorage } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+export const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+export const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl) {
   throw new Error("Supabase URL is not defined. Please set EXPO_PUBLIC_SUPABASE_URL in your .env file.");
@@ -13,27 +13,42 @@ if (!supabaseAnonKey) {
 }
 
 // Create a simple AsyncStorage adapter
-const AsyncStorageAdapter: SupportedStorage = {
-  getItem: (key: string) => {
+// Add a check to ensure storage operations only happen in a client-side environment
+export const AsyncStorageAdapter: SupportedStorage = {
+  getItem: async (key: string) => {
+    if (typeof window === 'undefined' && typeof document === 'undefined') {
+      // Not in a browser-like environment, return null or handle appropriately
+      console.warn('AsyncStorage.getItem called in non-client environment');
+      return null;
+    }
     return AsyncStorage.getItem(key);
   },
-  setItem: (key: string, value: string) => {
+  setItem: async (key: string, value: string) => {
+    if (typeof window === 'undefined' && typeof document === 'undefined') {
+      console.warn('AsyncStorage.setItem called in non-client environment');
+      return;
+    }
     return AsyncStorage.setItem(key, value);
   },
-  removeItem: (key: string) => {
+  removeItem: async (key: string) => {
+    if (typeof window === 'undefined' && typeof document === 'undefined') {
+      console.warn('AsyncStorage.removeItem called in non-client environment');
+      return;
+    }
     return AsyncStorage.removeItem(key);
   },
 };
 
-export const supabase = createClient(
-  supabaseUrl,
-  supabaseAnonKey,
-  {
-    auth: {
-      storage: AsyncStorageAdapter, // Use plain AsyncStorage adapter
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: false,
-    },
-  }
-);
+// The Supabase client will now be initialized within the AuthProvider component
+// export const supabase = createClient(
+//   supabaseUrl,
+//   supabaseAnonKey,
+//   {
+//     auth: {
+//       storage: AsyncStorageAdapter, // Use plain AsyncStorage adapter
+//       autoRefreshToken: true,
+//       persistSession: true,
+//       detectSessionInUrl: false,
+//     },
+//   }
+// );

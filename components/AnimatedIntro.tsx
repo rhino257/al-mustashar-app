@@ -14,10 +14,6 @@ import Animated, {
   // DefaultStyle, // We might not need to import DefaultStyle directly
 } from 'react-native-reanimated';
 import { ReText } from 'react-native-redash';
-import {
-  widthPercentageToDP as wp,
-  heightPercentageToDP as hp,
-} from 'react-native-responsive-screen';
 
 const content = [
   { title: "بضعظة زر.", bg: Colors.lime, fontColor: Colors.pink },
@@ -34,11 +30,11 @@ const AnimatedIntro = () => {
   const { width, height } = useWindowDimensions();
 
   // ... (other constants and useEffects) ...
-  const responsiveFontSize = hp('4%');
-  const responsiveBallSize = wp('9%');
-  const responsiveMaskHeight = hp('5.5%');
-  const responsiveSmallOffset = wp('1%');
-  const responsiveContainerMarginTop = hp('30%');
+  const responsiveFontSize = height * 0.04;
+  const responsiveBallSize = width * 0.09;
+  const responsiveMaskHeight = height * 0.055;
+  const responsiveSmallOffset = width * 0.01;
+  const responsiveContainerMarginTop = height * 0.30;
   const maskWidth = width / 1.5;
   const halfInitialValue = width / 2 - responsiveBallSize / 2;
 

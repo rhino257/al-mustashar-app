@@ -1,9 +1,10 @@
 import Colors from '@/constants/Colors';
 import { Ionicons } from '@expo/vector-icons';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router'; // Import useSegments
 import * as Sentry from 'sentry-expo'; // Import Sentry
 import { TouchableOpacity, View, ActivityIndicator } from 'react-native'; // Import View and ActivityIndicator
 import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
+import { useEffect } from 'react'; // Import useEffect
 
 // Removed SQLiteProvider and migrateDbIfNeeded imports
 // import { SQLiteProvider } from 'expo-sqlite/next';
@@ -22,29 +23,63 @@ Sentry.init({
 
 const Layout = () => {
   const router = useRouter();
-  const { session, isLoading } = useAuth(); // Use useAuth hook
+  const segments = useSegments(); // To check current route
+  const { session, isLoading, onboardingStatus } = useAuth();
 
-  // If session is loading or null, don't render authenticated content
-  if (isLoading || !session) {
-    // You could return a loading indicator here if needed,
-    // but returning null allows the root layout to handle the redirect without rendering this content.
+  useEffect(() => {
+    if (isLoading) {
+      return; // Don't do anything while auth state is loading
+    }
+
+    const isOnboardingScreen = segments.join('/') === '(auth)/onboarding';
+
+    if (session) {
+      // User is logged in
+      if (onboardingStatus !== 'completed' && !isOnboardingScreen) {
+        // If onboarding is not done and we are NOT already on the onboarding screen, redirect.
+        router.replace('/(auth)/onboarding');
+      }
+    }
+    // If no session, the root layout (_layout.tsx) handles redirection to login.
+    // This (auth) layout shouldn't render if there's no session.
+  }, [isLoading, session, onboardingStatus, segments, router]);
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.light }}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
+
+  // If there's no session, root layout handles redirect. Returning null here.
+  if (!session) {
     return null;
   }
 
+  // If session exists, but onboarding is not complete AND we are not yet on the onboarding screen,
+  // show a loading indicator while the useEffect above handles the redirect.
+  const isOnboardingScreenCheck = segments.join('/') === '(auth)/onboarding';
+  if (onboardingStatus !== 'completed' && !isOnboardingScreenCheck) {
+     return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.light }}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
+  
+  // Render the authenticated stack if:
+  // 1. User is logged in (session exists).
+  // 2. AND (Onboarding is completed OR we are currently on the onboarding screen).
   return (
-    // Removed RevenueCatProvider and SQLiteProvider
-    // <RevenueCatProvider>
-    //   <SQLiteProvider databaseName="chat.db" onInit={migrateDbIfNeeded}>
-        <Stack
-          screenOptions={{
-            contentStyle: { backgroundColor: Colors.selected },
-          }}>
-          <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
-          {/* Include the entire (modal) group and set its presentation to modal */}
-          <Stack.Screen name="(modal)" options={{ headerShown: false, presentation: 'modal' }} />
-        </Stack>
-    //   </SQLiteProvider>
-    // </RevenueCatProvider>
+    <Stack
+      screenOptions={{
+        contentStyle: { backgroundColor: Colors.selected },
+      }}>
+      <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
+      <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+      <Stack.Screen name="(modal)" options={{ headerShown: false, presentation: 'modal' }} />
+    </Stack>
   );
 };
 

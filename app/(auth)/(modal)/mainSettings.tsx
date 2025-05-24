@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { ActivityIndicator, View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Dimensions } from 'react-native';
+import { ActivityIndicator, View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Dimensions, I18nManager } from 'react-native';
 import { useRouter } from 'expo-router';
 import Colors from '@/constants/Colors'; // ENSURE Colors.grey and Colors.danger are well-defined
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -51,7 +51,7 @@ const MainSettingsScreen = () => {
 
   const handleSignOut = async () => {
     try { await signOut(); } 
-    catch (error) { console.error("Error signing out: ", error); Alert.alert("Sign Out Error", "Failed to sign out."); }
+    catch (error) { console.error("Error signing out: ", error); Alert.alert("خطأ في تسجيل الخروج", "فشل تسجيل الخروج."); }
   };
 
   // handleFeatureUnavailable now matches the drawer's signature
@@ -76,13 +76,15 @@ const MainSettingsScreen = () => {
         const isActuallyNavigable = isOriginallyNavigable && !isUnderDevelopment;
 
         const RowContent = (
-          // flexDirection is 'row' to have TextBlock on the left and MainIcon on the right (visually L-R)
-          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-            {/* This View (TextBlock) needs flex: 1 to push the MainIcon to the right edge of RowContent */}
+          // If RTL, use 'row-reverse' to make TextBlock appear left and MainIcon right (visual LTR order)
+          // If LTR, use 'row' to make TextBlock appear left and MainIcon right
+          <View style={{ flexDirection: I18nManager.isRTL ? 'row-reverse' : 'row', alignItems: 'center', flex: 1 }}>
+            {/* This View (TextBlock) needs flex: 1. */}
             <View style={{ flex: 1 }}>
-              <Text style={[styles.optionText, isUnderDevelopment && styles.disabledOptionText]}>{option.title}</Text>
+              {/* Applying alignSelf: 'stretch' to Text components, assuming parent View (TextBlock) has alignItems: 'flex-start' (default for cross-axis if not specified) or similar */}
+              <Text style={[styles.optionText, {alignSelf: 'stretch'}, isUnderDevelopment && styles.disabledOptionText]}>{option.title}</Text>
               {(typeof subtextValue === 'string' && subtextValue.length > 0) && (
-                <Text style={[styles.optionSubtext, isUnderDevelopment && styles.disabledOptionText]}>{subtextValue}</Text>
+                <Text style={[styles.optionSubtext, {alignSelf: 'stretch'}, isUnderDevelopment && styles.disabledOptionText]}>{subtextValue}</Text>
               )}
             </View>
             {/* MainIcon is the second child, will appear on the right of TextBlock */}

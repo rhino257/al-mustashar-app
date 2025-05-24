@@ -1,5 +1,5 @@
 import 'react-native-url-polyfill/auto';
-import { SupportedStorage } from '@supabase/supabase-js';
+import { createClient, SupportedStorage } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -40,15 +40,20 @@ export const AsyncStorageAdapter: SupportedStorage = {
 };
 
 // The Supabase client will now be initialized within the AuthProvider component
-// export const supabase = createClient(
-//   supabaseUrl,
-//   supabaseAnonKey,
-//   {
-//     auth: {
-//       storage: AsyncStorageAdapter, // Use plain AsyncStorage adapter
-//       autoRefreshToken: true,
-//       persistSession: true,
-//       detectSessionInUrl: false,
-//     },
-//   }
-// );
+// Apply conditional storage to the global client as well
+import { Platform } from 'react-native'; // Import Platform
+
+const globalStorageAdapter = Platform.OS === 'web' ? undefined : AsyncStorageAdapter;
+
+export const supabase = createClient(
+  supabaseUrl!,
+  supabaseAnonKey!,
+  {
+    auth: {
+      storage: globalStorageAdapter as SupportedStorage, // Use conditional adapter
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false,
+    },
+  }
+);

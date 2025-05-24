@@ -8,6 +8,7 @@ import { ActivityIndicator, TouchableOpacity, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { configureReanimatedLogger } from 'react-native-reanimated';
 import * as Sentry from "@sentry/react-native"; // Import Sentry
+import { StatusBar } from 'expo-status-bar'; // Added StatusBar import
 
 // configureReanimatedLogger({ disableStrict: true }); // Removed as 'disableStrict' is not a valid property
 
@@ -36,7 +37,7 @@ const InitialLayout = () => {
     // SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
   // Use Supabase Auth state
-  const { session, isLoading: isSupabaseAuthLoading } = useAuth();
+  const { session, user, isLoading: isSupabaseAuthLoading, onboardingStatus } = useAuth(); // Added user and onboardingStatus
   const segments = useSegments();
   const router = useRouter();
 
@@ -57,27 +58,36 @@ const InitialLayout = () => {
   // Redirection logic based on Supabase Auth state
   useEffect(() => {
     if (isSupabaseAuthLoading) {
-      return; // Wait until Supabase auth state is determined
+      return; // Wait until Supabase auth state (including initial profile fetch) is determined
     }
 
+    const currentRoute = segments.join('/');
     const inAuthGroup = segments[0] === '(auth)';
 
-    if (session && !inAuthGroup) {
-      // User is signed in with Supabase and is currently outside the '(auth)' group of routes.
-      // Redirect them to the main authenticated part of the app.
-      router.replace('/(auth)/(drawer)/(chat)/new'); // Or your default authenticated route
+    if (session && user) { // User is signed in and user object is available
+      if (onboardingStatus && onboardingStatus !== 'completed') {
+        // Onboarding is not complete, redirect to onboarding screen
+        if (currentRoute !== '(auth)/onboarding') {
+          router.replace('/(auth)/onboarding');
+        }
+      } else if (onboardingStatus === 'completed') {
+        // Onboarding is complete
+        if (currentRoute === '(auth)/onboarding' || !inAuthGroup) {
+          // If on onboarding screen OR outside auth group, redirect to main app
+          router.replace('/(auth)/(drawer)/(chat)/new');
+        }
+        // If already inAuthGroup and not on onboarding, they are likely on a valid authenticated page.
+      }
+      // If onboardingStatus is null but session & user exist, AuthContext might still be fetching it.
+      // isSupabaseAuthLoading should ideally cover this.
     } else if (!session && inAuthGroup) {
-      // User is NOT signed in with Supabase, but is trying to access a route within the '(auth)' group.
-      // Redirect them to the initial screen (which should lead to login).
+      // User is NOT signed in, but is trying to access a route within the '(auth)' group.
       router.replace('/');
+    } else if (!session && currentRoute !== '' && currentRoute !== 'login' && currentRoute !== 'index') {
+      // User is not signed in and on some other page (e.g. deep link) that isn't the entry or login
+      // router.replace('/'); // Optional: redirect to home if on an unknown public path
     }
-    // Optional: Add more specific conditions if needed, for example,
-    // if a non-logged-in user tries to access a specific deep path that isn't '/login'.
-    // else if (!session && segments.join('/') !== '' && segments.join('/') !== 'login') {
-    //   router.replace('/');
-    // }
-
-  }, [isSupabaseAuthLoading, session, segments, router]);
+  }, [isSupabaseAuthLoading, session, user, onboardingStatus, segments, router]);
 
   // Render Slot only when fonts and auth state are loaded
   if (!loaded || isSupabaseAuthLoading) {
@@ -97,15 +107,12 @@ const InitialLayout = () => {
         name="login"
         options={{
           presentation: 'modal',
+          headerShown: false, // Hide the header for the login screen
           title: '',
           headerTitleStyle: {
             fontFamily: 'mon-sb',
           },
-          headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()}>
-              <Ionicons name="close-outline" size={28} />
-            </TouchableOpacity>
-          ),
+          // Removed headerLeft as the header is now hidden
         }}
       />
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
@@ -119,6 +126,7 @@ const RootLayoutNav = () => {
     // <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY!} tokenCache={tokenCache}>
       <AuthProvider>
         <GestureHandlerRootView style={{ flex: 1 }}>
+          <StatusBar style="light" backgroundColor="transparent" translucent={true} />
           <InitialLayout />
         </GestureHandlerRootView>
       </AuthProvider>

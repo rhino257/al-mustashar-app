@@ -14,9 +14,11 @@ import Colors from '@/constants/Colors'; // Assuming Colors is defined here
 
 // Props interface
 export interface Props {
-  onShouldSend: (message: string) => void;
+  onShouldSend: (message: string, use_reranker: boolean) => void; // Modified to include use_reranker
   isSending: boolean; // RE-ADDED THIS PROP
   onStopSending: () => void; // Added prop to handle stopping the sending process
+  isLampActive: boolean; // New prop
+  onToggleLamp: () => void; // New prop
 }
 
 const MessageInput: React.FC<Props> = (props) => {
@@ -26,7 +28,7 @@ const MessageInput: React.FC<Props> = (props) => {
   const [showUploadMessage, setShowUploadMessage] = useState(false); // For popup messages
   const [uploadMessageText, setUploadMessageText] = useState(''); // For popup messages
   const timerRef = useRef<NodeJS.Timeout | null>(null); // For popup messages
-  const [isLampSelected, setIsLampSelected] = useState(false); // For the lamp icon
+  // Removed: const [isLampSelected, setIsLampSelected] = useState(false);
 
   // Helper function to display popup messages
   const displayMessage = (text: string) => {
@@ -44,14 +46,18 @@ const MessageInput: React.FC<Props> = (props) => {
 
   // Handle lamp icon press
   const handleLampPress = () => {
-    setIsLampSelected(!isLampSelected);
-    // TODO: Implement lamp functionality
-    displayMessage('Lamp feature unavailable');
+    props.onToggleLamp(); // Call parent's toggle function
+    // Display message based on the new state (which will be reflected in props.isLampActive after parent updates)
+    if (!props.isLampActive) { // If it's currently false, pressing it will make it true
+      displayMessage('تم تفعيل وضع التفكير'); // Thinking mode activated
+    } else {
+      displayMessage('تم الغاء وضع التفكير'); // Thinking mode deactivated
+    }
   };
 
   // Handle upload feature unavailable
   const handleUploadFeatureUnavailable = () => {
-    displayMessage('Upload feature unavailable');
+    displayMessage('ميزة التحميل غير متاحة'); // Upload feature unavailable
   };
 
   // Handle text input change
@@ -62,7 +68,7 @@ const MessageInput: React.FC<Props> = (props) => {
   // Handle send button press
   const onSend = () => {
     if (message.trim().length > 0) {
-      props.onShouldSend(message.trim());
+      props.onShouldSend(message.trim(), props.isLampActive); // Pass props.isLampActive
       setMessage('');
     }
   };
@@ -84,8 +90,8 @@ const MessageInput: React.FC<Props> = (props) => {
         {/* TextInput component */}
         <TextInput
           ref={inputRef}
-          style={styles.messageInput}
-          placeholder="Message"
+          style={[styles.messageInput, { textAlign: 'right' }]} // Added textAlign: 'right'
+          placeholder="أسال المستشار..."
           placeholderTextColor={Colors.chatgptText}
           value={message}
           onChangeText={onChangeText}
@@ -108,9 +114,9 @@ const MessageInput: React.FC<Props> = (props) => {
             {/* Lamp Icon */}
             <TouchableOpacity style={styles.iconButton} onPress={handleLampPress}>
               <Ionicons
-                name={isLampSelected ? 'bulb' : 'bulb-outline'}
+                name={props.isLampActive ? 'bulb' : 'bulb-outline'}
                 size={24}
-                color={isLampSelected ? Colors.chatgptText : Colors.chatgptText} // Or active color
+                color={props.isLampActive ? Colors.chatgptText : Colors.chatgptText} // Or active color
               />
             </TouchableOpacity>
 
@@ -125,7 +131,7 @@ const MessageInput: React.FC<Props> = (props) => {
               </TouchableOpacity>
             ) : message.length === 0 ? (
               // Display Mic icon when no message and not sending
-              <TouchableOpacity key="mic-button" style={styles.iconButton} onPress={() => {/* TODO: Voice input */}}>
+              <TouchableOpacity key="mic-button" style={styles.iconButton} onPress={() => displayMessage('هذه الخدمة قيد التطوير')}>
                 <Ionicons name="mic-outline" size={28} color={Colors.chatgptText} />
               </TouchableOpacity>
             ) : (
@@ -149,13 +155,13 @@ const MessageInput: React.FC<Props> = (props) => {
 const styles = StyleSheet.create({
   keyboardAvoidingView: {
     width: '100%',
-    backgroundColor: Colors.chatgptDarkGray, // Dark theme background
+    backgroundColor: Colors.messageInputBackground, // Dark theme background
   },
   contentContainer: {
     flexDirection: 'column', // Stack TextInput above iconRow
     paddingHorizontal: 10,
     paddingVertical: 8,
-    backgroundColor: Colors.chatgptDarkGray, // Dark theme background
+    backgroundColor: Colors.messageInputBackground, // Dark theme background
   },
   messageInput: {
     flex: 1,

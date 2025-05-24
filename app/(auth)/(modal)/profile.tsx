@@ -7,7 +7,7 @@ const ProfileScreen = () => {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'الملف الشخصي' }} />
-      <Text style={styles.text}>Profile Settings Placeholder</Text>
+      <Text style={styles.text}>إعدادات الملف الشخصي</Text>
     </View>
   );
 };

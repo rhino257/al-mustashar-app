@@ -7,7 +7,7 @@ const DataControlsScreen = () => {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'عناصر التحكم في البيانات' }} />
-      <Text style={styles.text}>Data Controls Settings Placeholder</Text>
+      <Text style={styles.text}>إعدادات التحكم في البيانات</Text>
     </View>
   );
 };

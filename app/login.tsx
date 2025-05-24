@@ -1,6 +1,7 @@
 import Colors from '@/constants/Colors';
 import { defaultStyles } from '@/constants/Styles';
 import { supabase } from '@/utils/supabase'; // Import Supabase client
+import { useAuth } from '@/contexts/AuthContext'; // << ADD THIS LINE
 import { useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
@@ -23,6 +24,7 @@ const Login = () => {
   const { type } = useLocalSearchParams<{ type: string }>();
   // console.log('Login page type:', type);
   const router = useRouter();
+  const { processLogin } = useAuth(); // << ADD THIS LINE
 
   const [emailAddress, setEmailAddress] = useState('');
   const [password, setPassword] = useState('');
@@ -39,12 +41,23 @@ const Login = () => {
         email: emailAddress,
         password: password,
       });
-      if (error) Alert.alert('Sign In Error', error.message);
-      // else if (data.session) { /* AuthContext handles navigation */ }
-      else if (!data.session && !error) { // Check if no session and no explicit error
-         Alert.alert('Sign In Failed', 'Please check your credentials or try again.');
+      // console.log('[Login] signInWithPassword result:', { data, error }); // DIAGNOSTIC LOG REMOVED
+      if (error) {
+        Alert.alert('Sign In Error', error.message);
+      } else if (data.session) {
+        // console.log('[Login] Session received, calling processLogin and router.back()'); // DIAGNOSTIC LOG REMOVED
+        await processLogin(data.session); // << ADD THIS LINE
+        router.back(); 
+      } else if (data.user && !data.session) { // User exists but no session (e.g. MFA required)
+        // console.log('[Login] User exists but no session. MFA or other step might be required.'); // DIAGNOSTIC LOG REMOVED
+        Alert.alert('Sign In Pending', 'Additional verification might be required.');
+      }
+      else {
+        // console.log('[Login] No session and no error, but sign in failed.'); // DIAGNOSTIC LOG REMOVED
+        Alert.alert('Sign In Failed', 'Please check your credentials or try again.');
       }
     } catch (err: any) {
+      console.error('Error during sign in:', err); // Kept console.error for actual errors
       Alert.alert('Sign In Error', err.message || 'An unexpected error occurred.');
     } finally {
       setLoading(false);
@@ -58,13 +71,56 @@ const Login = () => {
         email: emailAddress,
         password: password,
       });
+
       if (error) {
         Alert.alert('Sign Up Error', error.message);
-      } else { // Broad success message, covers pending confirmation and immediate session
-         Alert.alert('Sign Up Attempted', 'Please check your email to confirm your account if required.');
+      } else if (data.user) {
+        // Sign-up successful at Supabase level
+        if (data.session) {
+          // Session available immediately (e.g., email confirmation disabled)
+          await processLogin(data.session); // processLogin is from useAuth()
+        }
+        // else: No immediate session (e.g., email confirmation pending).
+        // onAuthStateChange in AuthContext will pick up the user.
+        // _layout will then navigate based on onboarding status.
+        
+        // Close the login modal to allow _layout.tsx to handle redirection.
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          // Fallback if login wasn't a modal, though _layout should still react.
+          // Potentially navigate to a known entry point if router.back() isn't appropriate.
+          // For now, relying on AuthContext + _layout to redirect.
+        }
+      } else {
+        // Should not happen if no error and no user, but as a fallback:
+        Alert.alert('Sign Up Failed', 'An unexpected issue occurred. Please try again.');
       }
     } catch (err: any) {
       Alert.alert('Sign Up Error', err.message || 'An unexpected error occurred.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        // options: {
+        //   redirectTo: 'YOUR_APP_SCHEME://callback', // TODO: Configure this for deep linking
+        //   // queryParams: { access_type: 'offline', prompt: 'consent' } // Example
+        // }
+      });
+      if (error) {
+        Alert.alert('Google Sign-In Error', error.message);
+      }
+      // For mobile OAuth, successful initiation usually opens a browser/webview.
+      // The result (session) is typically handled via deep linking and onAuthStateChange.
+      // No direct session object is returned here in the mobile flow usually.
+    } catch (err: any) {
+      Alert.alert('Google Sign-In Error', err.message || 'An unexpected error occurred.');
     } finally {
       setLoading(false);
     }
@@ -103,7 +159,7 @@ const Login = () => {
         <View style={styles.inputContainer}>
           <TextInput
             autoCapitalize="none"
-            placeholder="john@apple.com"
+            placeholder="البريد الإلكتروني"
             value={emailAddress}
             onChangeText={setEmailAddress}
             style={styles.inputField}
@@ -154,7 +210,7 @@ const Login = () => {
           <View style={styles.seperator} />
         </View>
 
-        <TouchableOpacity style={[defaultStyles.btn, styles.socialBtn, styles.btnLight, styles.socialButtonSpacing]}>
+        <TouchableOpacity style={[defaultStyles.btn, styles.socialBtn, styles.btnLight, styles.socialButtonSpacing]} onPress={handleGoogleSignIn}>
           <Ionicons name="logo-google" size={20} style={styles.btnIcon} color={'#000'} />
           <Text style={styles.btnLightText}>استمر مع جوجل</Text>
         </TouchableOpacity>
@@ -238,7 +294,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     backgroundColor: '#fff',
     fontSize: 16,
-    textAlign: Platform.OS === 'ios' ? 'left' : 'right', // For RTL placeholder/text alignment
+    textAlign: 'right', // For RTL placeholder/text alignment
   },
   btnPrimary: {
     backgroundColor: Colors.primary,

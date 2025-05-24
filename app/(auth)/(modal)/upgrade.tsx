@@ -7,7 +7,7 @@ const UpgradeScreen = () => {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'الترقية إلى Pro' }} />
-      <Text style={styles.text}>Upgrade Settings Placeholder</Text>
+      <Text style={styles.text}>إعدادات الترقية</Text>
     </View>
   );
 };

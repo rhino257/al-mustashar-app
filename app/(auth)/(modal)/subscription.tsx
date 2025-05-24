@@ -7,7 +7,7 @@ const SubscriptionScreen = () => {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'إدارة الاشتراك' }} />
-      <Text style={styles.text}>Subscription Settings Placeholder</Text>
+      <Text style={styles.text}>إعدادات الاشتراك</Text>
     </View>
   );
 };

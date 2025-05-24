@@ -7,7 +7,7 @@ const VoiceSettingsScreen = () => {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'الصوت' }} />
-      <Text style={styles.text}>Voice Settings Placeholder</Text>
+      <Text style={styles.text}>إعدادات الصوت</Text>
     </View>
   );
 };

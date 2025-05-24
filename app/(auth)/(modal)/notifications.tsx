@@ -7,7 +7,7 @@ const NotificationsScreen = () => {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'الإشعارات' }} />
-      <Text style={styles.text}>Notifications Settings Placeholder</Text>
+      <Text style={styles.text}>إعدادات الإشعارات</Text>
     </View>
   );
 };

@@ -27,4 +27,5 @@ export default {
   chatgptText: '#ffffff',
   white: '#ffffff', // Added white color
   black: '#000000', // Added black color
+  messageInputBackground: '#333333', // New color for the input background
 };

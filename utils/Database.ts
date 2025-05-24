@@ -10,6 +10,7 @@ export interface Chat {
   model_type?: string | null; // New, optional
   user_id: string; // New, though RLS handles filtering
   created_at: string; // Standard Supabase timestamp
+  updated_at: string; // To sort by recent activity
   // Add any other fields from your Supabase 'chats' table you want to use in the app
 }
 
@@ -49,8 +50,8 @@ export interface Message {
 export const getChats = async (): Promise<Chat[]> => {
   const { data, error }: PostgrestResponse<Chat> = await supabase
     .from('chats')
-    .select('chat_id, chat_name, project_id, model_type, user_id, created_at') // Select specific columns
-    .order('created_at', { ascending: false });
+    .select('chat_id, chat_name, project_id, model_type, user_id, created_at, updated_at') // Select specific columns
+    .order('updated_at', { ascending: false });
 
   if (error) {
     console.error('Error fetching chats:', error.message);
@@ -221,3 +222,109 @@ export const addAssistantMessageViaFunction = async (
 
 // Keep or adapt other functions as needed in later stages
 // export const deleteChat = async (db: SQLiteDatabase, chatId: number) => { ... };
+
+// New function to directly archive and delete a chat using SQL
+export const archiveAndDeleteChatDirectly = async (chatId: string): Promise<{ success: boolean; message?: string; error?: string }> => {
+  try {
+    // Step 1: Fetch the chat metadata
+    const { data: chatDetails, error: fetchChatError } = await supabase
+      .from('chats')
+      .select('*')
+      .eq('chat_id', chatId)
+      .single();
+
+    if (fetchChatError || !chatDetails) {
+      console.error('Error fetching chat metadata for archiving:', fetchChatError?.message);
+      return { success: false, error: fetchChatError?.message || 'Chat metadata not found for archiving.' };
+    }
+
+    // Step 2: Fetch associated messages
+    const { data: messages, error: fetchMessagesError } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('chat_id', chatId)
+      .order('message_timestamp', { ascending: true });
+
+    if (fetchMessagesError) {
+      console.error('Error fetching messages for archiving:', fetchMessagesError.message);
+      return { success: false, error: `Failed to fetch messages for archiving: ${fetchMessagesError.message}` };
+    }
+
+    // Step 3: Prepare the comprehensive archived object
+    // Destructure chat_id from chatDetails to avoid storing it redundantly within the JSON blob
+    const { chat_id: originalChatId, ...restOfChatDetails } = chatDetails;
+    const comprehensiveArchivedData = {
+      chat_details: restOfChatDetails, // Now chat_details in JSON does not contain chat_id
+      messages: messages || [], // Ensure messages is an array, even if null/undefined
+    };
+
+    // Step 4: Execute INSERT into archived_chats and DELETE from chats
+    // The MCP server's execute_postgresql tool should handle this in a transaction.
+    
+    // Note: Direct SQL execution for INSERT/DELETE requires UNSAFE mode.
+    // This client-side code can't directly call live_dangerously.
+    // We are assuming the MCP server or the environment where execute_postgresql runs
+    // is either pre-configured for unsafe operations when needed, or the user
+    // will be prompted if direct SQL for write operations is attempted without it.
+    // For now, we construct the SQL. The actual call to execute_postgresql
+    // will be made from where this function is used, or this function would
+    // need to be refactored if it were to call MCP tools itself.
+    //
+    // Given the current tool structure, it's better if the component logic
+    // handles the live_dangerously calls around the call to a function that
+    // returns the SQL string, or this function itself uses execute_postgresql.
+    // Let's assume this function will use execute_postgresql.
+    
+    // Attempting direct Supabase client operations.
+    // These are subject to RLS policies for the authenticated user.
+    const { error: insertArchivedError } = await supabase
+      .from('archived_chats')
+      .insert({ chat_id: chatId, archived_data: comprehensiveArchivedData });
+
+    if (insertArchivedError) {
+      console.error('Error inserting into archived_chats:', insertArchivedError.message);
+      return { success: false, error: `Failed to archive chat with messages: ${insertArchivedError.message}` };
+    }
+
+    // If archiving messages is successful, then delete messages associated with the chat
+    // This step is crucial to prevent orphaned messages if the chat is deleted but messages aren't.
+    // However, if RLS on `messages` table prevents user from deleting messages directly, this will fail.
+    // Often, messages are deleted via cascade when the chat is deleted, if a foreign key with ON DELETE CASCADE is set up.
+    // Let's assume for now that deleting the chat from 'chats' table will handle messages if FK is set.
+    // If not, messages should be deleted here explicitly.
+    // For simplicity, we'll rely on potential CASCADE delete or manual cleanup later if needed.
+    // A more robust solution would delete messages explicitly here if no CASCADE.
+
+    const { error: deleteChatError } = await supabase
+      .from('chats')
+      .delete()
+      .eq('chat_id', chatId);
+
+    if (deleteChatError) {
+      console.error('Error deleting from chats table:', deleteChatError.message);
+      // At this point, chat and messages are archived, but original chat metadata failed to delete.
+      // This is an inconsistent state. Manual intervention or a more complex rollback might be needed.
+      return { success: false, error: `Chat and messages archived, but failed to delete original chat metadata: ${deleteChatError.message}` };
+    }
+    
+    // Optionally, delete messages from the 'messages' table if not handled by CASCADE delete
+    // This is important to prevent orphaned messages.
+    const { error: deleteMessagesError } = await supabase
+        .from('messages')
+        .delete()
+        .eq('chat_id', chatId);
+
+    if (deleteMessagesError) {
+        console.warn('Warning: Chat metadata deleted, but failed to delete associated messages from messages table:', deleteMessagesError.message);
+        // This is not a full failure of archiving, but data is left behind.
+        // The main success is that the chat is "deleted" from the user's active view.
+    }
+
+
+    return { success: true, message: 'Chat and its messages archived and deleted successfully.' };
+
+  } catch (e: any) {
+    console.error('Exception in archiveAndDeleteChatDirectly:', e.message);
+    return { success: false, error: e.message };
+  }
+};

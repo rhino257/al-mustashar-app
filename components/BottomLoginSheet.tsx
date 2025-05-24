@@ -11,7 +11,7 @@ const BottomLoginSheet = () => {
     <View style={[styles.container, { paddingBottom: bottom }]}>
       <TouchableOpacity style={[defaultStyles.btn, styles.btnLight]}>
         <Ionicons name="logo-google" size={16} style={styles.btnIcon} color={'#000'} />
-        <Text style={styles.btnLightText}>المتابعة باستخدام Google</Text>
+        <Text style={styles.btnLightText}>المتابعة باستخدام جوجل</Text>
       </TouchableOpacity>
       <Link
         href={{
@@ -21,7 +21,7 @@ const BottomLoginSheet = () => {
         style={[defaultStyles.btn, styles.btnDark]}
         asChild>
         <TouchableOpacity>
-          <Text style={styles.btnDarkText}>انشاء حساب</Text>
+          <Text style={styles.btnDarkText}>التسجيل</Text>
         </TouchableOpacity>
       </Link>
       <View style={styles.divider} />

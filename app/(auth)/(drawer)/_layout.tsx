@@ -1,6 +1,6 @@
 import { Drawer } from 'expo-router/drawer';
 import { DrawerContentScrollView, DrawerItemList, DrawerItem } from '@react-navigation/drawer';
-import { Link, useNavigation, useRouter } from 'expo-router';
+import { Link, useNavigation, useRouter, useLocalSearchParams } from 'expo-router'; // Added useLocalSearchParams
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
 Image,
@@ -17,11 +17,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { DrawerActions } from '@react-navigation/native';
 import { useEffect, useState, useRef } from 'react';
-import { getChats, renameChat, deleteChatViaFunction, Chat } from '@/utils/Database'; // Import Supabase functions and Chat type
+import { getChats, renameChat, deleteChatViaFunction, Chat, archiveAndDeleteChatDirectly } from '@/utils/Database'; // Import Supabase functions and Chat type, Added archiveAndDeleteChatDirectly
+import ChatListItemMenu from '@/components/ChatListItemMenu'; // Added Import
+import RenameChatModal from '@/components/RenameChatModal'; // Added Import
 import { useDrawerStatus } from '@react-navigation/drawer';
-import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
+import { useAuth }
+from '@/contexts/AuthContext'; // Import useAuth
 // Removed Chat import from utils/Interfaces
-import { Keyboard } from 'react-native';
+import { Keyboard, Pressable } from 'react-native'; // Added Pressable
 
 export const CustomDrawerContent = (props: any & { dimensions: any }) => {
 const { bottom, top } = useSafeAreaInsets();
@@ -29,12 +32,17 @@ const { dimensions } = props; // Destructure dimensions from props
 const isDrawerOpen = useDrawerStatus() === 'open';
 const [history, setHistory] = useState<Chat[]>([]); // Use new Chat type
 const router = useRouter();
+const localSearchParams = useLocalSearchParams<{ id?: string }>(); // Added
 const [showFeatureUnavailableMessage, setShowFeatureUnavailableMessage] = useState(false);
 const timerRef = useRef<NodeJS.Timeout | null>(null); // Ref to store the timeout ID
 const [activePopupCoords, setActivePopupCoords] = useState<{ y: number; height: number } | null>(null);
 const itemRefs = useRef<{ [key: string]: View | null }>({});
 
 const { user, fullName, avatarText, isLoading } = useAuth(); // Consume AuthContext
+
+const [isMenuVisible, setIsMenuVisible] = useState(false);
+const [isRenameModalVisible, setIsRenameModalVisible] = useState(false);
+const [selectedChatForMenu, setSelectedChatForMenu] = useState<Chat | null>(null);
 
 useEffect(() => {
 loadChats();
@@ -72,44 +80,112 @@ console.error("Failed to load chats:", error);
 }
 };
 
-// Implement renameChat function using Supabase
-const onRenameChat = (chatId: string) => { // chatId is now string
-Alert.prompt('Rename Chat', 'Enter a new name for the chat', async (newName) => {
-if (newName) {
-const success = await renameChat(chatId, newName); // Call new renameChat
-if (success) {
-loadChats(); // Refresh the list
-Alert.alert('Success', 'Chat renamed.');
-} else {
-Alert.alert('Error', 'Failed to rename chat.');
-}
-}
-});
+// // Implement renameChat function using Supabase (Old version, to be replaced by modal flow)
+// const onRenameChat = (chatId: string) => { 
+//   Alert.prompt('Rename Chat', 'Enter a new name for the chat', async (newName) => {
+//     if (newName) {
+//       const success = await renameChat(chatId, newName); 
+//       if (success) {
+//         loadChats(); 
+//         Alert.alert('Success', 'Chat renamed.');
+//       } else {
+//         Alert.alert('Error', 'Failed to rename chat.');
+//       }
+//     }
+//   });
+// };
+
+// // Implement deleteChat function using Supabase Edge Function (Old version, to be replaced by modal flow)
+// const onDeleteChat = (chatId: string) => { 
+//   Alert.alert('Delete Chat', 'Are you sure you want to delete this chat?', [
+//     { text: 'Cancel', style: 'cancel' },
+//     {
+//       text: 'Delete',
+//       onPress: async () => {
+//         const result = await deleteChatViaFunction(chatId); 
+//         if (result.success) {
+//           loadChats(); 
+//           Alert.alert('Success', result.message || 'Chat deleted.');
+//         } else {
+//           Alert.alert('Error', result.error || 'Failed to delete chat.');
+//         }
+//       },
+//     },
+//   ], { cancelable: false }); 
+// };
+
+
+// New Handlers for Modals
+const handleChatLongPress = (chat: Chat) => {
+  console.log('Long press on chat:', chat.chat_name); // Debug log
+  setSelectedChatForMenu(chat);
+  setIsMenuVisible(true);
 };
 
-// Implement deleteChat function using Supabase Edge Function
-const onDeleteChat = (chatId: string) => { // chatId is now string
-Alert.alert('Delete Chat', 'Are you sure you want to delete this chat?', [
-{ text: 'Cancel', style: 'cancel' },
-{
-text: 'Delete',
-onPress: async () => {
-const result = await deleteChatViaFunction(chatId); // Call deleteChatViaFunction
-if (result.success) {
-loadChats(); // Refresh the list
-Alert.alert('Success', result.message || 'Chat deleted.');
-// If currently viewing the deleted chat, navigate away:
-// if (router.params.id === chatId) router.replace('/(auth)/(drawer)/(chat)/new');
-} else {
-Alert.alert('Error', result.error || 'Failed to delete chat.');
-}
-},
-},
-], { cancelable: false }); // Make alert not dismissible by tapping outside
+const handleCloseMenu = () => {
+  setIsMenuVisible(false);
+  setSelectedChatForMenu(null);
+};
+
+const handleOpenRenameModal = () => {
+  if (!selectedChatForMenu) return;
+  setIsMenuVisible(false); // Close context menu
+  setIsRenameModalVisible(true);
+};
+
+const handleSaveRename = async (newName: string) => {
+  if (!selectedChatForMenu) return;
+  const success = await renameChat(selectedChatForMenu.chat_id, newName);
+  if (success) {
+    loadChats();
+    Alert.alert('Success', 'Chat renamed successfully.');
+  } else {
+    Alert.alert('Error', 'Failed to rename chat.');
+  }
+  setIsRenameModalVisible(false);
+  setSelectedChatForMenu(null); // Clear selected chat
+};
+
+const handleCancelRename = () => {
+  setIsRenameModalVisible(false);
+  setSelectedChatForMenu(null); // Clear selected chat
+};
+
+const handleConfirmDelete = () => {
+  if (!selectedChatForMenu) return;
+  const chatToDelete = selectedChatForMenu; // Capture before closing menu
+  setIsMenuVisible(false); // Close context menu
+
+  Alert.alert(
+    'حذف المحادثة',
+    `هل انت متاكد من انك ترغب في حذف "${chatToDelete.chat_name}"?`,
+    [
+      { text: 'Cancel', style: 'cancel', onPress: () => setSelectedChatForMenu(null) },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          // const result = await deleteChatViaFunction(chatToDelete.chat_id); // Old call
+          const result = await archiveAndDeleteChatDirectly(chatToDelete.chat_id); // New call
+          if (result.success) {
+            loadChats();
+          Alert.alert('Success', result.message || 'Chat deleted.');
+            if (localSearchParams.id && localSearchParams.id === chatToDelete.chat_id) {
+              router.replace('/(auth)/(drawer)/(chat)/new');
+            }
+          } else {
+            Alert.alert('Error', result.error || 'Failed to delete chat.');
+          }
+          setSelectedChatForMenu(null); // Clear selected chat
+        },
+      },
+    ],
+    { cancelable: true }
+  );
 };
 
 // Determine the display name
-const displayName = isLoading ? 'Loading...' : (fullName || user?.email || 'User');
+const displayName = isLoading ? 'جاري التحميل...' : (fullName || user?.email || 'مستخدم');
 
 const navigateToSettings = () => {
   // Bypassing TypeScript error by casting to any.
@@ -124,7 +200,7 @@ return (
 <Ionicons style={styles.searchIcon} name="search" size={20} color={Colors.greyLight} />
 <TextInput
 style={styles.input}
-placeholder="ابحث"
+placeholder="بحث"
 placeholderTextColor="#ffffff"
 underlineColorAndroid="transparent"
 />
@@ -203,17 +279,56 @@ underlineColorAndroid="transparent"
         </View>
       );
     })}
-    {/* Render DrawerItems for history without ContextMenu */}
+    {/* Render DrawerItems for history with ContextMenu */}
     <Text style={styles.chatsLabel}>المحادثات</Text>
-     {history.map((chat) => (
-        <DrawerItem
-          key={chat.chat_id}
-          label={chat.chat_name}
-          onPress={() => router.push(`/(auth)/(drawer)/(chat)/${chat.chat_id}`)}
-          inactiveTintColor={Colors.white}
-        />
-      ))}
+    {history.map((chat) => (
+      <Pressable
+        key={chat.chat_id}
+        onLongPress={() => handleChatLongPress(chat)}
+        onPress={() => {
+          // Close menu if open, then navigate
+          if (isMenuVisible) setIsMenuVisible(false);
+          if (selectedChatForMenu) setSelectedChatForMenu(null);
+          router.push(`/(auth)/(drawer)/(chat)/${chat.chat_id}`);
+        }}
+        style={styles.chatItemPressable} // Added for potential styling/hitSlop
+      >
+        <View pointerEvents="none" style={{width: '100%'}}> 
+          {/* pointerEvents="none" to ensure Pressable gets events */}
+          <DrawerItem
+            label={() => <Text style={{ color: Colors.white, fontSize: 15, marginLeft: -16 /* Adjust to align text if needed */ }}>{chat.chat_name}</Text>}
+            inactiveTintColor={Colors.white}
+            focused={localSearchParams.id === chat.chat_id} // Highlight if it's the active chat
+            activeBackgroundColor={Colors.chatgptGray} // A subtle background for active/focused
+            onPress={() => {
+              // This onPress on DrawerItem is primarily to satisfy TypeScript
+              // The actual navigation is handled by the outer Pressable's onPress
+              // Optionally, you could also put navigation logic here if outer Pressable's onPress is removed
+            }}
+            style={{ marginVertical: 2, paddingVertical: 4, width: '100%' }} 
+          />
+        </View>
+      </Pressable>
+    ))}
   </DrawerContentScrollView>
+
+  {selectedChatForMenu && (
+    <ChatListItemMenu
+      isVisible={isMenuVisible}
+      onClose={handleCloseMenu}
+      onRename={handleOpenRenameModal}
+      onDelete={handleConfirmDelete}
+    />
+  )}
+
+  {selectedChatForMenu && (
+    <RenameChatModal
+      isVisible={isRenameModalVisible}
+      currentName={selectedChatForMenu.chat_name}
+      onSave={handleSaveRename}
+      onCancel={handleCancelRename}
+    />
+  )}
 
   {showFeatureUnavailableMessage && activePopupCoords && ( // Also check activePopupCoords is not null
     <View style={{
@@ -242,7 +357,7 @@ underlineColorAndroid="transparent"
     {/* Name Section - In the middle */}
     <View style={styles.nameContainer}>
       <Text style={styles.userNameText} numberOfLines={1} ellipsizeMode="tail">
-        {isLoading && !fullName ? 'Loading...' : (fullName || user?.email || 'User')}
+        {isLoading && !fullName ? 'جاري التحميل...' : (fullName || user?.email || 'مستخدم')}
       </Text>
     </View>
 
@@ -297,11 +412,17 @@ const Layout = () => {
         name="(chat)/new"
         getId={() => Math.random().toString()}
         options={({ navigation }) => ({ // options is now a function
-          headerTitle: '',
+          headerTitle: () => (
+            <View style={{ alignItems: 'center' }}>
+              <Text style={styles.headerTitle}>المستشار</Text>
+              <Text style={styles.betaLabel}>نسخة تجريبية</Text>
+            </View>
+          ),
+          headerTitleAlign: 'center',
           drawerLabel: () => ( // Custom drawerLabel for RTL
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <View style={[styles.item, { backgroundColor: '#000' }]}>
-                <Image source={require('@/assets/images/logo.png')} style={styles.btnImage} />
+                <Image source={require('@/assets/images/logo.jpg')} style={styles.btnImage} />
               </View>
               <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>المستشار</Text>
             </View>
@@ -323,10 +444,9 @@ const Layout = () => {
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <TouchableOpacity
                 onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())} // Use scoped navigation
-                style={{ marginLeft: 16, marginRight: 10 }}>
+                style={{ marginLeft: 16 }}>
                 <FontAwesome6 name="grip-lines" size={20} color="#ffffff" />
               </TouchableOpacity>
-              <Text style={styles.headerTitle}>المستشار</Text>
             </View>
           ),
         })}
@@ -334,7 +454,13 @@ const Layout = () => {
       <Drawer.Screen
         name="(chat)/[id]"
         options={({ navigation }) => ({ // options is now a function
-          headerTitle: '',
+          headerTitle: () => (
+            <View style={{ alignItems: 'center' }}>
+              <Text style={styles.headerTitle}>المستشار</Text>
+              <Text style={styles.betaLabel}>نسخة تجريبية</Text>
+            </View>
+          ),
+          headerTitleAlign: 'center',
           drawerItemStyle: {
             display: 'none',
           },
@@ -350,15 +476,12 @@ const Layout = () => {
               </TouchableOpacity>
             </Link>
           ),
-          headerLeft: () => ( // Menu icon and Title on the LEFT
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <TouchableOpacity
-                onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())} // Use scoped navigation
-                style={{ marginLeft: 16, marginRight: 10 }}>
-                <FontAwesome6 name="grip-lines" size={20} color="#ffffff" />
-              </TouchableOpacity>
-              <Text style={styles.headerTitle}>المستشار</Text>
-            </View>
+          headerLeft: () => ( // Menu icon on the LEFT
+            <TouchableOpacity
+              onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())} // Use scoped navigation
+              style={{ marginLeft: 16 }}>
+              <FontAwesome6 name="grip-lines" size={20} color="#ffffff" />
+            </TouchableOpacity>
           ),
         })}
       />
@@ -394,7 +517,7 @@ alignItems: 'center',
 justifyContent: 'center',
 },
 ]}>
-<Ionicons name="apps-outline" size={18} color="#000" />
+<Ionicons name="apps-outline" size={18} color="#ffffff" />
 </View>
 <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '600' }}>استكشف المستشار</Text>
 </View>
@@ -471,10 +594,14 @@ height: 28,
 resizeMode: 'cover',
 },
 headerTitle: {
-fontSize: 20,
+fontSize: 18, // Adjusted size
 fontWeight: 'bold',
 color: '#ffffff', // Set header title color to white
-textAlign: 'right',
+},
+betaLabel: {
+  fontSize: 10,
+  color: Colors.grey,
+  marginTop: 1,
 },
 chatsLabel: {
 fontSize: 16,
@@ -522,6 +649,10 @@ avatarAndNameContainer: { // This style is no longer needed as a direct child of
     color: Colors.white,
     fontWeight: '600', // Slightly bolder if desired with larger size
     // textAlign: 'left', // Default for LTR, will be right for RTL if device is set
+  },
+  chatItemPressable: { // Style for the Pressable wrapper
+    // backgroundColor: 'transparent', // Ensure it doesn't obscure
+    // You might add padding here if needed, instead of on DrawerItem directly
   },
 });
 

@@ -21,7 +21,7 @@ const HeaderDropDown = ({ title, selected, items, onSelect }: Props) => {
 
 
   // Determine the display name
-  const displayName = isLoading && !fullName ? 'Loading...' : (fullName || user?.email || 'User');
+  const displayName = isLoading && !fullName ? 'جاري التحميل...' : (fullName || user?.email || 'مستخدم');
 
   if (isLoading && !fullName) {
     // Optionally return a specific loading indicator for the dropdown if desired
@@ -33,7 +33,7 @@ const HeaderDropDown = ({ title, selected, items, onSelect }: Props) => {
       <DropdownMenu.Trigger>
         <View style={styles.triggerContainer}>
           {/* TEMPORARY VISIBLE MARKER */}
-          <Text style={{color: 'red', fontSize: 30, backgroundColor: 'yellow'}}>HEADER DROP DOWN HERE!</Text>
+          <Text style={{color: 'red', fontSize: 30, backgroundColor: 'yellow'}}>قائمة الرأس هنا!</Text>
 
           {/* Avatar Display */}
           {avatarText ? (

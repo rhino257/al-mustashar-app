@@ -52,9 +52,12 @@
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-native": "0.76.9",
+    "react-native-country-picker-modal": "^2.0.0",
+    "react-native-event-source": "^1.1.0",
     "react-native-gesture-handler": "~2.20.2",
     "react-native-ios-context-menu": "^2.5.1",
     "react-native-ios-utilities": "^4.4.5",
+    "react-native-markdown-display": "^7.0.2",
     "react-native-mmkv": "^3.2.0",
     "react-native-openai": "^0.6.1",
     "react-native-reanimated": "~3.16.1",
@@ -94,7 +97,9 @@
           "react-native-openai",
           "@wisiendot/expo-unlimited-secure-store",
           "openai",
-          "sentry-expo"
+          "sentry-expo",
+          "react-native-sse",
+          "react-native-event-source"
         ]
       }
     }

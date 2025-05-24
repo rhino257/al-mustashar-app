@@ -10,7 +10,10 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   fullName: string | null;
   avatarText: string | null;
-  phoneNumber: string | null; // << ADD THIS LINE
+  phoneNumber: string | null;
+  onboardingStatus: string | null;
+  processLogin: (session: Session) => Promise<void>;
+  refreshUserProfile: () => Promise<void>; // Function to manually refresh user profile
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -38,7 +41,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
   const [fullName, setFullName] = useState<string | null>(null);
   const [avatarText, setAvatarText] = useState<string | null>(null);
-  const [phoneNumber, setPhoneNumber] = useState<string | null>(null); // << ADD THIS LINE
+  const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
+  const [onboardingStatus, setOnboardingStatus] = useState<string | null>(null);
+
+  const fetchUserProfile = async (currentUserId: string) => {
+    if (!currentUserId) return;
+    setIsLoading(true); // Optionally set loading true during refresh
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('full_name, phone_number, onboarding_status')
+      .eq('user_id', currentUserId)
+      .single();
+
+    if (userError) {
+      console.error('Error fetching user profile:', userError);
+      setFullName(null);
+      setAvatarText(null);
+      setPhoneNumber(null);
+      setOnboardingStatus(null);
+    } else if (userData) {
+      setFullName(userData.full_name || null);
+      setPhoneNumber(userData.phone_number || null);
+      setOnboardingStatus(userData.onboarding_status || null);
+      const { data: { user: authUser } } = await supabase.auth.getUser(); // Get current auth user to derive avatar
+      if (authUser?.email) {
+        const emailParts = authUser.email.split('@')[0];
+        const initialLetters = emailParts.substring(0, 2).toUpperCase();
+        setAvatarText(initialLetters);
+      } else {
+        setAvatarText(null);
+      }
+    }
+    setIsLoading(false); // Set loading false after refresh
+  };
 
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
@@ -51,99 +86,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 
         if (session?.user) {
-          const userId = session.user.id;
-          // Fetch full name and phone number from Supabase
-          const { data: userData, error: userError } = await supabase
-            .from('users') // Or the name of your user table
-            .select('full_name, phone_number') // << MODIFIED: Added phone_number
-            .eq('user_id', userId) // Corrected column name
-            .single(); // Assuming a single user matches the ID
-
-          if (userError) {
-              console.error('Error fetching user details:', userError);
-              setFullName(null);
-              console.log('[AuthContext] Set fullName to: null (error)');
-              setAvatarText(null);
-              console.log('[AuthContext] Set avatarText to: null (error)');
-              setPhoneNumber(null); // Clear phone number if no user
-          } else if (userData) {
-              // Set full name
-              setFullName(userData.full_name || null);
-              console.log('[AuthContext] Set fullName to:', userData.full_name || null);
-              setPhoneNumber(userData.phone_number || null); // << ADD THIS LINE: Set phone number
-
-              // Generate initial avatar text
-              if (session.user.email) {
-                const emailParts = session.user.email.split('@')[0];
-                const initialLetters = emailParts.substring(0, 2).toUpperCase();
-                setAvatarText(initialLetters);
-                console.log('[AuthContext] Set avatarText to:', initialLetters);
-              } else {
-                  setAvatarText(null);
-                  console.log('[AuthContext] Set avatarText to: null (no email)');
-              }
-          }
+          fetchUserProfile(session.user.id);
         } else {
           // Clear user data on sign out
           setFullName(null);
-          console.log('[AuthContext] Set fullName to: null (signed out)');
           setAvatarText(null);
-          console.log('[AuthContext] Set avatarText to: null (signed out)');
-          setPhoneNumber(null); // Clear phone number if no user
+          setPhoneNumber(null);
+          setOnboardingStatus(null);
         }
       }
     );
 
     // Initial session check
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user || null);
-      setIsLoading(false);
-      console.log('[AuthContext] setIsLoading to false (getSession)');
-
-
-      if (session?.user) {
-        const userId = session.user.id;
-        // Fetch full name and phone number from Supabase
-        const { data: userData, error: userError } = await supabase
-          .from('users') // Or the name of your user table
-          .select('full_name, phone_number') // << MODIFIED: Added phone_number
-          .eq('user_id', userId) // Corrected column name
-          .single(); // Assuming a single user matches the ID
-
-        if (userError) {
-            console.error('Error fetching user details:', userError);
-            setFullName(null);
-            console.log('[AuthContext] Set fullName to: null (error)');
-            setAvatarText(null);
-            console.log('[AuthContext] Set avatarText to: null (error)');
-            setPhoneNumber(null); // Clear phone number if no user
-        } else if (userData) {
-            // Set full name
-            setFullName(userData.full_name || null);
-            console.log('[AuthContext] Set fullName to:', userData.full_name || null);
-            setPhoneNumber(userData.phone_number || null); // << ADD THIS LINE: Set phone number
-
-            // Generate initial avatar text
-            if (session.user.email) {
-              const emailParts = session.user.email.split('@')[0];
-              const initialLetters = emailParts.substring(0, 2).toUpperCase();
-              setAvatarText(initialLetters);
-              console.log('[AuthContext] Set avatarText to:', initialLetters);
-            } else {
-                setAvatarText(null);
-                console.log('[AuthContext] Set avatarText to: null (no email)');
-            }
-        }
-      } else {
-        // Clear user data if no session
-        setFullName(null);
-        console.log('[AuthContext] Set fullName to: null (no session)');
-        setAvatarText(null);
-        console.log('[AuthContext] Set avatarText to: null (no session)');
-        setPhoneNumber(null); // Clear phone number if no user
+    const fetchInitialSession = async () => {
+      setIsLoading(true);
+      const { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) {
+        console.error("Error fetching initial session:", sessionError);
+        setIsLoading(false);
+        return;
       }
-    });
+
+      setSession(initialSession);
+      setUser(initialSession?.user || null);
+
+      if (initialSession?.user) {
+        await fetchUserProfile(initialSession.user.id);
+      } else {
+        setFullName(null);
+        setAvatarText(null);
+        setPhoneNumber(null);
+        setOnboardingStatus(null);
+        setIsLoading(false); // Ensure loading is false if no user
+      }
+      // setIsLoading(false); // fetchUserProfile will set this
+    };
+
+    fetchInitialSession();
 
 
     return () => {
@@ -163,6 +142,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // onAuthStateChange listener will handle setting session/user to null
   };
 
+  const processLogin = async (newSession: Session) => {
+    setIsLoading(true);
+    setSession(newSession);
+    setUser(newSession.user);
+
+    if (newSession.user) {
+      await fetchUserProfile(newSession.user.id);
+    } else {
+      setFullName(null);
+      setAvatarText(null);
+      setPhoneNumber(null);
+      setOnboardingStatus(null);
+      setIsLoading(false);
+    }
+    // setIsLoading(false); // fetchUserProfile will set this
+  };
+
+  const refreshUserProfile = async () => {
+    if (user?.id) {
+      await fetchUserProfile(user.id);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -172,7 +174,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signOut,
         fullName,
         avatarText,
-        phoneNumber, // << ADD THIS LINE
+        phoneNumber,
+        onboardingStatus,
+        processLogin,
+        refreshUserProfile, // Provide the refresh function
       }}>
       {children}
     </AuthContext.Provider>

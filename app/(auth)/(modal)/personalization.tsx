@@ -7,7 +7,7 @@ const PersonalizationScreen = () => {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'التخصيص' }} />
-      <Text style={styles.text}>Personalization Settings Placeholder</Text>
+      <Text style={styles.text}>إعدادات التخصيص</Text>
     </View>
   );
 };

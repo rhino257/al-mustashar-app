@@ -1,6 +1,6 @@
 import Colors from '@/constants/Colors';
 import { memo, useEffect } from 'react';
-import { StyleSheet, useWindowDimensions, Platform, TextStyle as RNTextStyle, ViewStyle, ImageStyle } from 'react-native'; // Import ViewStyle, ImageStyle
+import { StyleSheet, useWindowDimensions, Platform, TextStyle as RNTextStyle, ViewStyle, ImageStyle, I18nManager } from 'react-native'; // Import ViewStyle, ImageStyle, I18nManager
 import Animated, {
   interpolate,
   interpolateColor,
@@ -16,7 +16,7 @@ import Animated, {
 import { ReText } from 'react-native-redash';
 
 const content = [
-  { title: "بضعظة زر.", bg: Colors.lime, fontColor: Colors.pink },
+  { title: "بضغطة زر.", bg: Colors.lime, fontColor: Colors.pink },
   { title: "نتبادل الأفكار.", bg: Colors.brown, fontColor: Colors.sky },
   { title: "نكتشف.", bg: Colors.orange, fontColor: Colors.blue },
   { title: "ننطلق.", bg: Colors.teal, fontColor: Colors.yellow },
@@ -68,11 +68,18 @@ const AnimatedIntro = () => {
       fontSize: responsiveFontSize,
       fontWeight: '600', // This is a valid RNTextStyle['fontWeight']
       position: 'absolute',
-      left: '0%',
       opacity: 0, // Opacity is part of ViewStyle, but TextStyle extends ViewStyle, so it's fine
       transform: [{ translateX: initialX }],
       color: content[currentIndex.value].fontColor, // Default string color
+      textAlign: 'right', // Keep 'right' for RTL script
+      // writingDirection: 'ltr', // Removing this for now
     };
+
+    if (I18nManager.isRTL) {
+      styleObject.right = '0%';
+    } else {
+      styleObject.left = '0%';
+    }
 
     const isReadyForMainAnimation = labelWidth.value > 0 && half.value !== 0;
 
@@ -104,26 +111,38 @@ const AnimatedIntro = () => {
     const ballStyle = useAnimatedStyle(() => {
     if ((labelWidth.value <= 0 && half.value === 0) || currentX.value === undefined || half.value === undefined || newColorIndex.value === undefined) return {opacity:0};
     const inputRange = [half.value, half.value + (labelWidth.value > 0 ? labelWidth.value / 2 : responsiveBallSize)];
-    return {
+    const style: ViewStyle = { // Define style type
       backgroundColor: interpolateColor(
         currentX.value, inputRange, [content[newColorIndex.value].fontColor, content[currentIndex.value].fontColor],'RGB') as any,
       transform: [{ translateX: currentX.value }],
       width: responsiveBallSize, height: responsiveBallSize, borderRadius: responsiveBallSize / 2,
-      zIndex: 10, position: 'absolute', left: '0%', opacity: labelWidth.value === -1 ? 0 : 1,
+      zIndex: 10, position: 'absolute', opacity: labelWidth.value === -1 ? 0 : 1,
     };
+    if (I18nManager.isRTL) {
+      style.right = '0%';
+    } else {
+      style.left = '0%';
+    }
+    return style;
   }, [currentIndex, currentX, labelWidth, half, newColorIndex, responsiveBallSize]);
 
   const maskAnimatedStyle = useAnimatedStyle(() => {
     if ((labelWidth.value <= 0 && half.value === 0) || currentX.value === undefined || half.value === undefined || newColorIndex.value === undefined) return {opacity:0};
     const inputRange = [half.value, half.value + (labelWidth.value > 0 ? labelWidth.value / 2 : responsiveBallSize)];
-    return {
+    const style: ViewStyle = { // Define style type
       backgroundColor: interpolateColor(
         currentX.value, inputRange, [content[newColorIndex.value].bg, content[currentIndex.value].bg], 'RGB') as any,
       transform: [{ translateX: currentX.value }],
       width: maskWidth, height: responsiveMaskHeight,
       borderTopLeftRadius: responsiveMaskHeight / 2.2, borderBottomLeftRadius: responsiveMaskHeight / 2.2,
-      zIndex: 1, position: 'absolute', left: '0%', opacity: labelWidth.value === -1 ? 0 : 1,
+      zIndex: 1, position: 'absolute', opacity: labelWidth.value === -1 ? 0 : 1,
     };
+    if (I18nManager.isRTL) {
+      style.right = '0%';
+    } else {
+      style.left = '0%';
+    }
+    return style;
   }, [currentIndex, currentX, labelWidth, half, newColorIndex, maskWidth, responsiveMaskHeight, responsiveBallSize]);
 
   const wrapperBackgroundStyle = useAnimatedStyle(() => {

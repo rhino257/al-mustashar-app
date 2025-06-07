@@ -395,8 +395,9 @@ const Layout = () => {
             <FontAwesome6 name="grip-lines" size={20} color="#ffffff" />
           </TouchableOpacity>
         ),
+        headerTransparent: true,
         headerStyle: {
-          backgroundColor: Colors.chatgptBackground,
+          // backgroundColor: Colors.chatgptBackground, // Removed for transparency
         },
         headerTintColor: '#ffffff', // Set header text and icon color to white
         headerShadowVisible: false,
@@ -653,6 +654,27 @@ avatarAndNameContainer: { // This style is no longer needed as a direct child of
   chatItemPressable: { // Style for the Pressable wrapper
     // backgroundColor: 'transparent', // Ensure it doesn't obscure
     // You might add padding here if needed, instead of on DrawerItem directly
+  },
+  drawerPopupView: {
+    position: 'absolute',
+    bottom: 60, // Adjust as needed, above footer
+    left: 20,
+    right: 20,
+    backgroundColor: Colors.messageInputBackground, // Or Colors.chatgptBackground for drawer theme
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+    zIndex: 10000, // Ensure it's above other drawer content
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  drawerPopupText: {
+    color: Colors.white,
+    fontSize: 14,
+    textAlign: 'center',
   },
 });
 

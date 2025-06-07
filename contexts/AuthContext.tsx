@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
-import { createClient, Session, User, SupportedStorage } from '@supabase/supabase-js'; // Import SupportedStorage
-import { Platform } from 'react-native'; // Import Platform
-import { supabaseUrl, supabaseAnonKey, AsyncStorageAdapter } from '@/utils/supabase';
+import { Session, User } from '@supabase/supabase-js'; // SupportedStorage and createClient might not be needed if using global
+// import { Platform } from 'react-native'; // Not needed if using global client
+import { supabase } from '@/utils/supabase'; // Import the globally configured supabase client
 
 interface AuthContextType {
   session: Session | null;
@@ -19,149 +19,126 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const supabase = useMemo(() => {
-    const storageAdapter = Platform.OS === 'web' ? undefined : AsyncStorageAdapter; // Conditional storage
-
-    return createClient(
-      supabaseUrl!,
-      supabaseAnonKey!,
-      {
-        auth: {
-          storage: storageAdapter as SupportedStorage, // Use the conditional adapter
-          autoRefreshToken: true,
-          persistSession: true,
-          detectSessionInUrl: false, // Recommended to be false for React Native
-        },
-      }
-    );
-  }, []);
+  // Use the globally configured supabase client from '@/utils/supabase'
+  // const supabase = useMemo(() => { ... }, []); // This local client initialization is removed
 
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Start true
   const [fullName, setFullName] = useState<string | null>(null);
   const [avatarText, setAvatarText] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
   const [onboardingStatus, setOnboardingStatus] = useState<string | null>(null);
 
-  const fetchUserProfile = async (currentUserId: string) => {
-    if (!currentUserId) return;
-    setIsLoading(true); // Optionally set loading true during refresh
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('full_name, phone_number, onboarding_status')
-      .eq('user_id', currentUserId)
-      .single();
-
-    if (userError) {
-      console.error('Error fetching user profile:', userError);
+  const fetchUserProfileAndRelatedData = async (currentUserId: string | undefined) => {
+    if (!currentUserId) {
       setFullName(null);
       setAvatarText(null);
       setPhoneNumber(null);
       setOnboardingStatus(null);
-    } else if (userData) {
-      setFullName(userData.full_name || null);
-      setPhoneNumber(userData.phone_number || null);
-      setOnboardingStatus(userData.onboarding_status || null);
-      const { data: { user: authUser } } = await supabase.auth.getUser(); // Get current auth user to derive avatar
-      if (authUser?.email) {
-        const emailParts = authUser.email.split('@')[0];
-        const initialLetters = emailParts.substring(0, 2).toUpperCase();
-        setAvatarText(initialLetters);
-      } else {
-        setAvatarText(null);
-      }
+      return; // No user, clear profile data
     }
-    setIsLoading(false); // Set loading false after refresh
-  };
 
-  useEffect(() => {
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log(`Supabase auth event: ${event}`);
-        setSession(session);
-        setUser(session?.user || null);
-        setIsLoading(false);
-        console.log('[AuthContext] setIsLoading to false (onAuthStateChange)');
+    // console.log('[AuthContext] fetchUserProfileAndRelatedData for:', currentUserId);
+    try {
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('full_name, phone_number, onboarding_status')
+        .eq('user_id', currentUserId)
+        .single();
 
+      if (userError) throw userError;
 
-        if (session?.user) {
-          fetchUserProfile(session.user.id);
+      if (userData) {
+        setFullName(userData.full_name || null);
+        setPhoneNumber(userData.phone_number || null);
+        setOnboardingStatus(userData.onboarding_status || null);
+        // console.log('[AuthContext] User profile fetched:', userData);
+
+        // Fetch avatar text based on email (assuming user object is available on session)
+        // This might be slightly delayed if session.user isn't immediately populated with email.
+        // Supabase's user object on the session should have the email.
+        const authUser = session?.user; // Use the current session's user object
+        if (authUser?.email) {
+          const emailParts = authUser.email.split('@')[0];
+          const initialLetters = emailParts.substring(0, 2).toUpperCase();
+          setAvatarText(initialLetters);
         } else {
-          // Clear user data on sign out
-          setFullName(null);
           setAvatarText(null);
-          setPhoneNumber(null);
-          setOnboardingStatus(null);
         }
-      }
-    );
-
-    // Initial session check
-    const fetchInitialSession = async () => {
-      setIsLoading(true);
-      const { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) {
-        console.error("Error fetching initial session:", sessionError);
-        setIsLoading(false);
-        return;
-      }
-
-      setSession(initialSession);
-      setUser(initialSession?.user || null);
-
-      if (initialSession?.user) {
-        await fetchUserProfile(initialSession.user.id);
       } else {
+        // No user data found, clear profile
         setFullName(null);
         setAvatarText(null);
         setPhoneNumber(null);
         setOnboardingStatus(null);
-        setIsLoading(false); // Ensure loading is false if no user
       }
-      // setIsLoading(false); // fetchUserProfile will set this
-    };
-
-    fetchInitialSession();
-
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
-
-  const signOut = async () => {
-    setIsLoading(true);
-    console.log('[AuthContext] setIsLoading to true (signOut)');
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error('Error signing out:', error);
-      setIsLoading(false); // Keep loading indicator if sign out fails? Or handle error differently.
-      console.log('[AuthContext] setIsLoading to false (signOut error)');
-    }
-    // onAuthStateChange listener will handle setting session/user to null
-  };
-
-  const processLogin = async (newSession: Session) => {
-    setIsLoading(true);
-    setSession(newSession);
-    setUser(newSession.user);
-
-    if (newSession.user) {
-      await fetchUserProfile(newSession.user.id);
-    } else {
+    } catch (error) {
+      console.error('Error in fetchUserProfileAndRelatedData:', error);
       setFullName(null);
       setAvatarText(null);
       setPhoneNumber(null);
       setOnboardingStatus(null);
-      setIsLoading(false);
     }
-    // setIsLoading(false); // fetchUserProfile will set this
+  };
+
+  useEffect(() => {
+    setIsLoading(true); // Set loading true on initial mount
+    // console.log('[AuthContext] Initializing, setIsLoading to true.');
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (_event, currentSession) => {
+        // console.log(`[AuthContext] Supabase auth event: ${_event}`);
+        // console.log(`[AuthContext] Current session from event:`, currentSession ? 'Exists' : 'Null');
+
+        setSession(currentSession);
+        const currentUser = currentSession?.user || null;
+        setUser(currentUser);
+
+        // Regardless of event type, if we have a currentUser, try to fetch their profile.
+        // If no currentUser, profile data will be cleared by fetchUserProfileAndRelatedData.
+        await fetchUserProfileAndRelatedData(currentUser?.id);
+
+        setIsLoading(false); // Set loading to false AFTER session/user update and profile fetch attempt
+        // console.log('[AuthContext] onAuthStateChange processed, setIsLoading to false.');
+      }
+    );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []); // Empty dependency array means this runs once on mount and cleans up on unmount
+
+  const signOut = async () => {
+    // console.log('[AuthContext] signOut called, setIsLoading to true.');
+    setIsLoading(true); // Set loading true before sign out
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Error signing out:', error);
+      setIsLoading(false); // If signout fails, stop loading
+      // console.log('[AuthContext] SignOut error, setIsLoading to false.');
+    }
+    // onAuthStateChange will handle setting session/user to null and then isLoading to false.
+  };
+
+  const processLogin = async (newSession: Session) => {
+    // This function is called from login.tsx after a successful manual signIn.
+    // onAuthStateChange will ALSO fire with a SIGNED_IN event and the newSession.
+    // To avoid duplicate profile fetches and state settings, this function
+    // should ideally do nothing or very little, relying on onAuthStateChange.
+    // console.log('[AuthContext] processLogin called. Relying on onAuthStateChange for state updates.');
+    // If absolutely necessary, you could set isLoading true here, but onAuthStateChange
+    // should also set it true then false.
+    // For now, let it be minimal. The key is that onAuthStateChange is the ultimate handler.
   };
 
   const refreshUserProfile = async () => {
     if (user?.id) {
-      await fetchUserProfile(user.id);
+      // console.log('[AuthContext] refreshUserProfile called, setIsLoading to true.');
+      setIsLoading(true);
+      await fetchUserProfileAndRelatedData(user.id);
+      setIsLoading(false);
+      // console.log('[AuthContext] refreshUserProfile done, setIsLoading to false.');
     }
   };
 

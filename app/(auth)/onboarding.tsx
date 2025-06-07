@@ -47,9 +47,9 @@ const OnboardingScreen = () => {
         }
 
         await refreshUserProfile(); // Refresh the user profile in context
-        // Navigate to the main part of the app after successful onboarding
-        // Adjust the navigation path as per your app's structure
-        router.replace('/(auth)/(drawer)/(chat)/new'); // Changed to new chat screen
+        // The main navigation logic in app/_layout.tsx will handle redirecting
+        // after onboardingStatus is updated to 'completed'.
+        // router.replace('/(auth)/(drawer)/(chat)/new'); // REMOVED
       } else {
         throw new Error('المستخدم غير موثق.');
       }

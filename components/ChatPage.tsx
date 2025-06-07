@@ -6,6 +6,8 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 // Import useRef
 import { useEffect, useState, useRef } from 'react';
 import { Image, View, StyleSheet, KeyboardAvoidingView, Platform, Alert, Text } from 'react-native';
+import { useHeaderHeight } from '@react-navigation/elements';
+import NetInfo from '@react-native-community/netinfo'; // Import NetInfo
 import { useMMKVString } from 'react-native-mmkv';
 // Import FlashList type for the ref
 import { FlashList } from '@shopify/flash-list';
@@ -33,13 +35,21 @@ export interface Message {
   isError?: boolean; // Added to flag errored messages
   originalUserQuery?: string; // Added to store the original query for retry
   originalUserId?: string; // Added to store the original user ID for retry
-  sources?: Array<{ // Added for source documents
+  sources?: Array<{ // Reflects the actual structure from API (id, content, metadata)
     id: string;
-    title: string;
-    snippet: string;
-    source_law?: string; // Optional as per backend example
-    article_number?: string; // Optional as per backend example
-    // Add any other fields your backend sends for sources
+    content: string; // API provides content directly
+    metadata: {      // API provides metadata as an object
+      title?: string; // This can be derived from law_name or other fields
+      law_name?: string;
+      article_number?: string | number;
+      processed_text?: string; // For fallback title
+      // Add any other relevant fields from API's metadata object
+      [key: string]: any; // Allow other metadata fields
+    };
+    // Removed: title: string; (now in metadata or derived)
+    // Removed: snippet: string; (now is 'content')
+    // Removed: source_law?: string; (now in metadata as law_name)
+    // Removed: article_number?: string; (now in metadata)
   }>;
 }
 // --- End Message Interface Definition ---
@@ -57,6 +67,12 @@ const ChatPage = () => {
   const [isSending, setIsSending] = useState(false); // Added isSending state
   const [_, setUpdateTrigger] = useState(0); // Dummy state to force re-render
   const [isLampModeActive, setIsLampModeActive] = useState(false); // State for lamp icon
+  const headerHeight = useHeaderHeight(); // Get header height
+
+  // Popup message state
+  const [showPopupMessage, setShowPopupMessage] = useState(false);
+  const [popupMessageContent, setPopupMessageContent] = useState('');
+  const popupTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Ref to store the stream closer function
   const streamCloserRef = useRef<(() => void) | null>(null);
@@ -90,7 +106,7 @@ const ChatPage = () => {
         Alert.alert("خطأ", "تعذر تحميل الرسائل.");
       });
     } else {
-      console.log("[ChatPage] New chat session or ID missing.");
+      // console.log("[ChatPage] New chat session or ID missing."); // Removed log
       setMessages([]);
       setChatId(undefined);
     }
@@ -114,13 +130,37 @@ const ChatPage = () => {
     }
   }, [messages.length]); // Depend only on the length changing
 
+  const displayPopupMessage = (text: string) => {
+    setPopupMessageContent(text);
+    setShowPopupMessage(true);
+
+    if (popupTimerRef.current) {
+      clearTimeout(popupTimerRef.current);
+    }
+
+    popupTimerRef.current = setTimeout(() => {
+      setShowPopupMessage(false);
+    }, 2000); // Hide after 2 seconds
+  };
 
   const onLayout = (event: any) => {
     const { height: layoutHeight } = event.nativeEvent.layout;
     setHeight(layoutHeight / 2);
   };
 
-  // --- getCompletion function remains the same ---
+  // --- New function to handle sending with network check ---
+  const handleSendMessage = async (text: string, use_reranker: boolean) => {
+    const state = await NetInfo.fetch();
+    if (!state.isConnected) {
+      Alert.alert("خطأ في الاتصال", "لا يوجد اتصال بالإنترنت. الرجاء التحقق من اتصالك والمحاولة مرة أخرى.");
+      return; // Stop sending if offline
+    }
+
+    // Proceed with original getCompletion logic if online
+    await getCompletion(text, use_reranker);
+  };
+
+  // --- getCompletion function remains the same (now called by handleSendMessage) ---
   const getCompletion = async (text: string, use_reranker: boolean) => { // Modified to accept use_reranker
     if (!user?.id) {
       Alert.alert("خطأ", "المستخدم غير موثق. لا يمكن إنشاء محادثة.");
@@ -297,8 +337,9 @@ const ChatPage = () => {
                             }
                         }
                         if (streamData.sources) {
+                            console.log('[ChatPage] RAW streamData.sources from METADATA event:', JSON.stringify(streamData.sources, null, 2));
                             botMsgToUpdate.sources = streamData.sources;
-                            console.log('[ChatPage] Updated sources for bot message from metadata:', streamData.sources);
+                            console.log('[ChatPage] Updated sources for bot message from metadata:', JSON.stringify(botMsgToUpdate.sources, null, 2));
                         }
                         // Handle file_processing_errors from metadata if needed (e.g., display a warning)
                         if (streamData.file_processing_errors && streamData.file_processing_errors.length > 0) {
@@ -346,8 +387,9 @@ const ChatPage = () => {
 
                         // Add sources if available in message_finalized
                         if (streamData.metadata?.sources) {
+                            console.log('[ChatPage] RAW streamData.metadata.sources from FINALIZED event:', JSON.stringify(streamData.metadata.sources, null, 2));
                             botMsgToUpdate.sources = streamData.metadata.sources;
-                            console.log('[ChatPage] Updated sources for bot message from finalized:', streamData.metadata.sources);
+                            console.log('[ChatPage] Updated sources for bot message from finalized:', JSON.stringify(botMsgToUpdate.sources, null, 2));
                         }
 
                         // Handle stream errors from message_finalized
@@ -510,7 +552,11 @@ const ChatPage = () => {
                     switch (eventType) {
                         case 'metadata':
                             if (streamData.ai_message_id && !botMsgToUpdate.ai_message_id) botMsgToUpdate.ai_message_id = streamData.ai_message_id;
-                            if (streamData.sources) botMsgToUpdate.sources = streamData.sources;
+                            if (streamData.sources) {
+                                console.log('[ChatPage] RETRY RAW streamData.sources from METADATA event:', JSON.stringify(streamData.sources, null, 2));
+                                botMsgToUpdate.sources = streamData.sources;
+                                console.log('[ChatPage] RETRY Updated sources for bot message from metadata:', JSON.stringify(botMsgToUpdate.sources, null, 2));
+                            }
                             break;
                         case 'stream_initiated':
                             break;
@@ -529,7 +575,11 @@ const ChatPage = () => {
                             }
                             if (streamData.persistent_ai_message_id) botMsgToUpdate.ai_message_id = streamData.persistent_ai_message_id;
                             else if (streamData.message_id && !botMsgToUpdate.ai_message_id) botMsgToUpdate.ai_message_id = streamData.message_id;
-                            if (streamData.metadata?.sources) botMsgToUpdate.sources = streamData.metadata.sources;
+                            if (streamData.metadata?.sources) {
+                                console.log('[ChatPage] RETRY RAW streamData.metadata.sources from FINALIZED event:', JSON.stringify(streamData.metadata.sources, null, 2));
+                                botMsgToUpdate.sources = streamData.metadata.sources;
+                                console.log('[ChatPage] RETRY Updated sources for bot message from finalized:', JSON.stringify(botMsgToUpdate.sources, null, 2));
+                            }
 
                             if (streamCloserRef.current) {
                                 streamCloserRef.current();
@@ -590,7 +640,7 @@ const ChatPage = () => {
         options={{
         }}
       />
-      <View style={styles.page} onLayout={onLayout}>
+      <View style={[styles.page, { paddingTop: headerHeight }]} onLayout={onLayout}>
         {messages.length === 0 && (
           <Text style={[{ fontSize: 24, fontWeight: 'bold', color: '#fff', textAlign: 'center' }, { marginTop: height > 100 ? height - 100 : 50 }]}>
             كيف يمكنني مساعدتك؟
@@ -604,16 +654,23 @@ const ChatPage = () => {
             const { key, ...restOfItem } = item;
             // Pass the original item.key as 'messageKeyValue'
             // React's internal key is handled by keyExtractor
-            return <ChatMessage {...restOfItem} messageKeyValue={key} handleRetry={handleRetry} />;
+            return <ChatMessage {...restOfItem} messageKeyValue={key} handleRetry={handleRetry} displayPopupMessage={displayPopupMessage} />;
           }}
           estimatedItemSize={100}
-          contentContainerStyle={{ paddingTop: 30, paddingBottom: 150 }}
+          contentContainerStyle={{ paddingBottom: 150 }}
           keyboardDismissMode="on-drag"
           keyExtractor={(item: Message) => item.key}
           getItemType={getItemType}
           automaticallyAdjustContentInsets={false}
         />
       </View>
+
+      {/* Popup message View, rendered by ChatPage */}
+      {showPopupMessage && (
+        <View style={styles.popupMessageView}>
+          <Text style={styles.popupMessageText}>{popupMessageContent}</Text>
+        </View>
+      )}
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -623,11 +680,12 @@ const ChatPage = () => {
 
         <MessageInput
           key={isSending ? 'sending-input' : 'idle-input'} // Add key based on isSending state
-          onShouldSend={getCompletion}
+          onShouldSend={handleSendMessage} // Call the new handler
           isSending={isSending} // Pass the isSending state
           onStopSending={handleStopSending} // Pass the stop handler
           isLampActive={isLampModeActive} // Pass the state for lamp icon
           onToggleLamp={toggleLampMode} // Pass the toggle function for lamp icon
+          displayPopupMessage={displayPopupMessage} // Pass the display function
         />
       </KeyboardAvoidingView>
     </View>
@@ -636,6 +694,27 @@ const ChatPage = () => {
 
 // Styles remain the same
 const styles = StyleSheet.create({
+  popupMessageView: { // Style for the popup message
+    position: 'absolute',
+    bottom: 80, // Adjust as needed to be above MessageInput
+    left: 10,
+    right: 10,
+    backgroundColor: Colors.messageInputBackground, // Use MessageInput background color
+    borderRadius: 5,
+    padding: 10, // Increased padding
+    alignItems: 'center',
+    zIndex: 1000, // Ensure it's above other elements
+    elevation: 5, // For Android shadow
+    shadowColor: '#000', // For iOS shadow
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  popupMessageText: { // Style for the popup message text
+    color: Colors.white,
+    fontSize: 14,
+    textAlign: 'center',
+  },
   headerTitle: {
       fontSize: 18,
       fontWeight: '500',

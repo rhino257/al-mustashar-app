@@ -19,45 +19,29 @@ export interface Props {
   onStopSending: () => void; // Added prop to handle stopping the sending process
   isLampActive: boolean; // New prop
   onToggleLamp: () => void; // New prop
+  displayPopupMessage: (text: string) => void; // Added prop for displaying popup
 }
 
 const MessageInput: React.FC<Props> = (props) => {
   const [message, setMessage] = useState('');
   const { bottom } = useSafeAreaInsets(); // If used for keyboard avoiding view padding
   const inputRef = useRef<TextInput>(null);
-  const [showUploadMessage, setShowUploadMessage] = useState(false); // For popup messages
-  const [uploadMessageText, setUploadMessageText] = useState(''); // For popup messages
-  const timerRef = useRef<NodeJS.Timeout | null>(null); // For popup messages
   // Removed: const [isLampSelected, setIsLampSelected] = useState(false);
-
-  // Helper function to display popup messages
-  const displayMessage = (text: string) => {
-    setUploadMessageText(text);
-    setShowUploadMessage(true);
-
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-    }
-
-    timerRef.current = setTimeout(() => {
-      setShowUploadMessage(false);
-    }, 2000); // Hide after 2 seconds
-  };
 
   // Handle lamp icon press
   const handleLampPress = () => {
     props.onToggleLamp(); // Call parent's toggle function
     // Display message based on the new state (which will be reflected in props.isLampActive after parent updates)
     if (!props.isLampActive) { // If it's currently false, pressing it will make it true
-      displayMessage('تم تفعيل وضع التفكير'); // Thinking mode activated
+      props.displayPopupMessage('تم تفعيل وضع التفكير'); // Thinking mode activated
     } else {
-      displayMessage('تم الغاء وضع التفكير'); // Thinking mode deactivated
+      props.displayPopupMessage('تم الغاء وضع التفكير'); // Thinking mode deactivated
     }
   };
 
   // Handle upload feature unavailable
   const handleUploadFeatureUnavailable = () => {
-    displayMessage('ميزة التحميل غير متاحة'); // Upload feature unavailable
+    props.displayPopupMessage('ميزة التحميل غير متاحة'); // Upload feature unavailable
   };
 
   // Handle text input change
@@ -79,12 +63,7 @@ const MessageInput: React.FC<Props> = (props) => {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0} // Adjust offset as needed
       style={[styles.keyboardAvoidingView, { paddingBottom: bottom }]}
     >
-      {/* Popup message View */}
-      {showUploadMessage && (
-        <View style={styles.uploadMessagePopup}>
-          <Text style={styles.uploadMessageText}>{uploadMessageText}</Text>
-        </View>
-      )}
+      {/* Popup message View removed, will be rendered by ChatPage */}
 
       <View style={styles.contentContainer}>
         {/* TextInput component */}
@@ -131,7 +110,7 @@ const MessageInput: React.FC<Props> = (props) => {
               </TouchableOpacity>
             ) : message.length === 0 ? (
               // Display Mic icon when no message and not sending
-              <TouchableOpacity key="mic-button" style={styles.iconButton} onPress={() => displayMessage('هذه الخدمة قيد التطوير')}>
+              <TouchableOpacity key="mic-button" style={styles.iconButton} onPress={() => props.displayPopupMessage('هذه الخدمة قيد التطوير')}>
                 <Ionicons name="mic-outline" size={28} color={Colors.chatgptText} />
               </TouchableOpacity>
             ) : (
@@ -193,21 +172,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  uploadMessagePopup: {
-    position: 'absolute',
-    top: -40, // Position above the input
-    left: 10,
-    right: 10,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    borderRadius: 5,
-    padding: 8,
-    alignItems: 'center',
-    zIndex: 10, // Ensure it's above other elements
-  },
-  uploadMessageText: {
-    color: Colors.white,
-    fontSize: 14,
-  },
+  // uploadMessagePopup and uploadMessageText styles removed as the View is removed
   recordingIndicatorBase: {
     backgroundColor: Colors.white, // Ensure Colors.white is defined (e.g., '#FFFFFF')
     borderRadius: 20, // Half of iconButton width/height to make it circular

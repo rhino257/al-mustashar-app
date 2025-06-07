@@ -1,5 +1,8 @@
-import React, { useEffect, useState, memo } from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity, ActivityIndicator, Pressable } from 'react-native';
+import React, { useEffect, useState, memo, useRef } from 'react'; // Added useRef
+import { View, Text, Image, StyleSheet, TouchableOpacity, ActivityIndicator, Pressable, Alert } from 'react-native'; // Added Alert
+import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
+import SourcesDisplay from './SourcesDisplay'; // Import SourcesDisplay
+import type { BottomSheetModal } from '@gorhom/bottom-sheet'; // Reverted to BottomSheetModal
 import Clipboard from '@react-native-clipboard/clipboard'; // If used for copy
 import MarkdownDisplay from 'react-native-markdown-display';
 import { Message } from '@/utils/Database'; // Import your Supabase Message type
@@ -19,14 +22,29 @@ import { Message as ChatPageMessage } from './ChatPage'; // Assuming ChatPage ex
 type ChatMessageProps = Omit<ChatPageMessage, 'key'> & { // Omit 'key' from ChatPageMessage as it's React's internal prop
   messageKeyValue: string; // Expect the key value under a different prop name
   handleRetry?: (messageKey: string) => Promise<void> | void;
+  displayPopupMessage?: (text: string) => void; // Added prop for displaying popup
 };
 
 // Props now directly use the Message type from Supabase
 const ChatMessage = (props: ChatMessageProps) => { // Add loading prop for streaming indicator
+  const bottomSheetModalRef = useRef<BottomSheetModal>(null); // Reverted to BottomSheetModal
+
+  // Removed verbose log for props.sources content
+  // if (props.sources && props.sources.length > 0) {
+  //   console.log('[ChatMessage] props.sources AS RECEIVED (first item):', JSON.stringify(props.sources[0], null, 2));
+  // }
   const [feedback, setFeedback] = useState<string | null>(props.user_feedback || null);
+  const [isSourcesModalVisible, setIsSourcesModalVisible] = useState(false); // State for sources modal
   // Destructure new props
   const { is_user_message, loading, isError, handleRetry, messageKeyValue, message_id } = props;
   const uniqueMessageId = messageKeyValue || message_id; // Use messageKeyValue (formerly item.key) or message_id
+
+  const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: scale.value }],
+    };
+  });
 
   const handleFeedback = async (newFeedbackType: 'liked' | 'disliked') => {
     // Safeguard: Abort if feedback is attempted on a temporary ID
@@ -89,10 +107,14 @@ const ChatMessage = (props: ChatMessageProps) => { // Add loading prop for strea
   // });
   // const isUser = props.is_user_message; // Already destructured as is_user_message
 
-  const onCopy = () => {
+  const handleLongPressCopy = () => {
     if (props.message_text) {
       Clipboard.setString(props.message_text);
-      // Optionally show a toast or feedback
+      if (props.displayPopupMessage) {
+        props.displayPopupMessage('تم نسخ الرسالة');
+      } else {
+        Alert.alert('تم نسخ الرسالة'); // Fallback if prop not provided
+      }
     }
   };
 
@@ -144,17 +166,27 @@ const ChatMessage = (props: ChatMessageProps) => { // Add loading prop for strea
 
 
       {/* Message Bubble Area */}
-      <View style={[styles.bubble, is_user_message ? styles.userBubble : styles.botBubble]}>
+      <Animated.View style={[styles.bubble, is_user_message ? styles.userBubble : styles.botBubble, animatedStyle]}>
         {/* Handle text messages - RENDER TEXT ALWAYS IF IT EXISTS */}
         {(props.messageType === 'text' || !props.messageType) && props.message_text ? (
-          <MarkdownDisplay
-            style={{
-              body: is_user_message ? styles.userMessageText : styles.botMessageText,
-              // Add other markdown element styles here if needed
+          <Pressable
+            onLongPress={handleLongPressCopy}
+            onPressIn={() => {
+              scale.value = withTiming(0.95, { duration: 100 });
+            }}
+            onPressOut={() => {
+              scale.value = withTiming(1, { duration: 100 });
             }}
           >
-            {props.message_text}
-          </MarkdownDisplay>
+            <MarkdownDisplay
+              style={{
+                body: is_user_message ? styles.userMessageText : styles.botMessageText,
+                // Add other markdown element styles here if needed
+              }}
+            >
+              {props.message_text}
+            </MarkdownDisplay>
+          </Pressable>
         ) : null}
         {/* Optionally, show a subtle loading indicator next to streaming text for non-user messages */}
         {!is_user_message && loading && props.message_text && (props.messageType === 'text' || !props.messageType) && <Text style={styles.streamingIndicator}>▋</Text>}
@@ -207,26 +239,23 @@ const ChatMessage = (props: ChatMessageProps) => { // Add loading prop for strea
              <ActivityIndicator color={Colors.primary} size="small" style={styles.initialLoadingSpinner} />
         )}
 
-        {/* Display sources if available for bot messages */}
-        {!is_user_message && props.sources && props.sources.length > 0 && (
-          <View style={styles.sourcesContainer}>
-            <Text style={styles.sourcesTitle}>Sources:</Text>
-            {props.sources.map((source) => (
-              <View key={source.id} style={styles.sourceItem}>
-                <Text style={styles.sourceTitle}>{source.title}</Text>
-                <Text style={styles.sourceSnippet} numberOfLines={2} ellipsizeMode="tail">
-                  {source.snippet}
-                </Text>
-                {/* Optionally display source_law and article_number if needed */}
-                {/* <Text style={styles.sourceMeta}>{source.source_law} - Art. {source.article_number}</Text> */}
-              </View>
-            ))}
-          </View>
-        )}
-
         {/* Feedback buttons for bot messages - only show if ID is not temporary */}
         {!is_user_message && !loading && props.message_text && !uniqueMessageId?.startsWith('temp_') && (
           <View style={styles.feedbackActionsContainer}>
+            {/* Sources Button - MOVED TO THE START (RIGHTMOST IN RTL) */}
+            {!is_user_message && props.sources && props.sources.length > 0 && (
+              <TouchableOpacity 
+                onPress={() => {
+                  console.log('[ChatMessage] Sources button pressed. Setting isSourcesModalVisible to true.');
+                  // bottomSheetModalRef.current?.present(); // Removed direct call, rely on SourcesDisplay useEffect via isVisible
+                  setIsSourcesModalVisible(true); 
+                }} 
+                style={[styles.feedbackButton, styles.sourcesButtonInternal]}>
+                <Ionicons name="library-outline" size={18} color="#777" />
+                <Text style={styles.sourcesButtonText}>المصادر</Text>
+              </TouchableOpacity>
+            )}
+
             {/* Show Like button if no feedback OR if feedback is 'liked' */}
             {(feedback === null || feedback === 'liked') && (
               <TouchableOpacity
@@ -263,8 +292,8 @@ const ChatMessage = (props: ChatMessageProps) => { // Add loading prop for strea
               </TouchableOpacity>
             )}
 
-            {/* Retry/Regenerate Button - Condition changed to show for all non-loading bot messages */}
-            {handleRetry && uniqueMessageId && ( // Removed isError condition, icon appears if handleRetry is present
+            {/* Retry/Regenerate Button */}
+            {handleRetry && uniqueMessageId && ( 
               <TouchableOpacity
                 style={styles.feedbackButton}
                 onPress={() => handleRetry(uniqueMessageId)}
@@ -273,16 +302,48 @@ const ChatMessage = (props: ChatMessageProps) => { // Add loading prop for strea
               </TouchableOpacity>
             )}
 
-            {/* Copy Button - MOVED HERE as the last item */}
-            {/* The condition for copy button specifically for text messages is still relevant if feedback icons might appear for non-text messages later */}
+            {/* Copy Button */}
             {(props.messageType === 'text' || !props.messageType) && (
-              <TouchableOpacity onPress={onCopy} style={styles.feedbackButton}>
+              <TouchableOpacity onPress={handleLongPressCopy} style={styles.feedbackButton}>
                 <Ionicons name="copy-outline" size={18} color="#777" />
               </TouchableOpacity>
             )}
           </View>
         )}
-      </View>
+      </Animated.View>
+
+      {/* Sources Modal Display */}
+      {!is_user_message && props.sources && props.sources.length > 0 && (
+        <SourcesDisplay
+          ref={bottomSheetModalRef} // Pass the ref
+          isVisible={isSourcesModalVisible}
+          sources={props.sources.map(s => {
+            // Actual structure of s (from ChatPage.Message.sources, populated by API):
+            // s: { id: string; content: string; metadata: { law_name?: string; article_number?: string; processed_text?: string; ... } }
+            // Target structure for SourceFromAPI: { id: string; content: string; metadata: { title?, law_name?, article_number? } }
+            
+            // Log the individual source item 's' from props.sources before mapping
+            // console.log('[ChatMessage] Mapping source item s:', JSON.stringify(s, null, 2));
+
+            const mappedSource = {
+              id: s.id,
+              content: s.content, // Use s.content directly
+              metadata: {
+                title: s.metadata?.law_name || s.metadata?.processed_text?.substring(0, 70) || 'المصدر', // Use law_name or a snippet of processed_text as title
+                law_name: s.metadata?.law_name, // Keep original law_name if available
+                article_number: s.metadata?.article_number, // Keep original article_number if available
+              }
+            };
+            // Log the mapped source item
+            // console.log('[ChatMessage] Mapped to SourceFromAPI:', JSON.stringify(mappedSource, null, 2));
+            return mappedSource;
+          })}
+          onClose={() => {
+            setIsSourcesModalVisible(false);
+            // bottomSheetModalRef.current?.dismiss(); // Already handled by useEffect in SourcesDisplay based on isVisible
+          }}
+        />
+      )}
     </View>
   );
 };
@@ -396,41 +457,16 @@ const styles = StyleSheet.create({
   hiddenIcon: {
     display: 'none',
   },
-  sourcesContainer: {
-    marginTop: 10,
-    paddingTop: 5,
-    borderTopWidth: 1,
-    borderColor: Colors.lightGray, // Use a color from your Colors constant
-    alignSelf: 'flex-end', // Align sources container to the right
+  // Removed sourcesContainer, sourcesTitle, sourceItem, sourceTitle, sourceSnippet, sourceMeta as they are no longer used for inline display
+  sourcesButtonInternal: { // Style for the new sources button
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  sourcesTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: Colors.chatgptText, // Use a color from your Colors constant
-    marginBottom: 5,
-    textAlign: 'right', // Align sources title to the right
+  sourcesButtonText: { // Style for the text "المصادر"
+    marginLeft: 5, // Space between icon and text
+    color: '#777',
+    fontSize: 14, // Adjust as needed
   },
-  sourceItem: {
-    marginBottom: 8,
-    paddingRight: 10, // Indent source items slightly (from the right)
-    alignItems: 'flex-end', // Align content of source item to the right
-  },
-  sourceTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.chatgptText, // Use a color from your Colors constant
-    textAlign: 'right', // Align source title to the right
-  },
-  sourceSnippet: {
-    fontSize: 12,
-    color: Colors.gray, // Use a color from your Colors constant
-    textAlign: 'right', // Align source snippet to the right
-  },
-  // sourceMeta: { // Optional style for law/article
-  //   fontSize: 11,
-  //   color: Colors.mediumGray, // Use a color from your Colors constant
-  //   textAlign: 'right',
-  // },
   sourcesToggleContainer: { // Container for the toggle header and the list
     marginTop: 10,
     paddingTop: 5,

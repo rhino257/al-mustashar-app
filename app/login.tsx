@@ -46,7 +46,7 @@ const Login = () => {
         Alert.alert('Sign In Error', error.message);
       } else if (data.session) {
         // console.log('[Login] Session received, calling processLogin and router.back()'); // DIAGNOSTIC LOG REMOVED
-        await processLogin(data.session); // << ADD THIS LINE
+        // await processLogin(data.session); // << Rely on onAuthStateChange
         router.back(); 
       } else if (data.user && !data.session) { // User exists but no session (e.g. MFA required)
         // console.log('[Login] User exists but no session. MFA or other step might be required.'); // DIAGNOSTIC LOG REMOVED
@@ -78,7 +78,7 @@ const Login = () => {
         // Sign-up successful at Supabase level
         if (data.session) {
           // Session available immediately (e.g., email confirmation disabled)
-          await processLogin(data.session); // processLogin is from useAuth()
+          // await processLogin(data.session); // << Rely on onAuthStateChange
         }
         // else: No immediate session (e.g., email confirmation pending).
         // onAuthStateChange in AuthContext will pick up the user.

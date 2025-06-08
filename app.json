@@ -15,7 +15,6 @@
     "assetBundlePatterns": [
       "**/*"
     ],
-    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.supersimon.chatgpt",
@@ -73,7 +72,9 @@
           "isAccessMediaLocationEnabled": true
         }
       ],
-      "sentry-expo"
+      "sentry-expo",
+      "expo-font",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

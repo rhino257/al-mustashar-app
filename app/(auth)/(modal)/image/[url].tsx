@@ -1,17 +1,17 @@
 import { Ionicons, Octicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Pressable, Alert } from 'react-native'; // Added Alert
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ImageZoom } from '@likashefqet/react-native-image-zoom';
 import { downloadAndSaveImage, shareImage } from '@/utils/Image';
 import DropDownMenu from '@/components/DropDownMenu';
-import {
-  BottomSheetModal,
-  BottomSheetModalProvider,
-  BottomSheetScrollView,
-} from '@gorhom/bottom-sheet';
-import { useCallback, useMemo, useRef } from 'react';
+// import {
+//   BottomSheetModal,
+//   BottomSheetModalProvider,
+//   BottomSheetScrollView,
+// } from '@gorhom/bottom-sheet'; // Commented out Gorhom imports
+import { useCallback, useMemo, useRef } from 'react'; // Keep these React hooks
 import Colors from '@/constants/Colors';
 import { defaultStyles } from '@/constants/Styles';
 import * as Clipboard from 'expo-clipboard';
@@ -22,14 +22,16 @@ const Page = () => {
   const { url, prompt } = useLocalSearchParams<{ url: string; prompt?: string }>();
   const { bottom } = useSafeAreaInsets();
 
-  const bottomSheetModalRef = useRef<BottomSheetModal>(null);
-  const snapPoints = useMemo(() => ['40%'], []);
+  // const bottomSheetModalRef = useRef<BottomSheetModal>(null); // Commented out Gorhom ref
+  const snapPoints = useMemo(() => ['40%'], []); // Keep if needed for other logic, or remove
   const handlePresentModalPress = useCallback(() => {
-    bottomSheetModalRef.current?.present();
+    // bottomSheetModalRef.current?.present(); // Commented out Gorhom action
+    console.log("Attempted to show prompt modal (currently disabled)");
+    Alert.alert("Info", "Prompt display is temporarily disabled."); // Placeholder action
   }, []);
 
   const handleCloseModalPress = useCallback(() => {
-    bottomSheetModalRef.current?.dismiss();
+    // bottomSheetModalRef.current?.dismiss(); // Commented out Gorhom action
   }, []);
 
   const onCopyPrompt = () => {
@@ -47,7 +49,7 @@ const Page = () => {
 
   return (
     <RootSiblingParent>
-      <BottomSheetModalProvider>
+      {/* <BottomSheetModalProvider> // Removed BottomSheetModalProvider */}
         <View style={styles.container}>
           <Stack.Screen
             options={{
@@ -57,7 +59,7 @@ const Page = () => {
                     { key: '1', title: 'View prompt', icon: 'info.circle' },
                     { key: '2', title: 'Learn more', icon: 'questionmark.circle' },
                   ]}
-                  onSelect={handlePresentModalPress}
+                  onSelect={handlePresentModalPress} // This will now show an Alert
                 />
               ),
             }}
@@ -101,6 +103,7 @@ const Page = () => {
           </BlurView>
         </View>
 
+        {/* Commented out BottomSheetModal section
         <BottomSheetModal
           ref={bottomSheetModalRef}
           index={0}
@@ -126,7 +129,8 @@ const Page = () => {
             </TouchableOpacity>
           </View>
         </BottomSheetModal>
-      </BottomSheetModalProvider>
+        */}
+      {/* </BottomSheetModalProvider> // Removed BottomSheetModalProvider */}
     </RootSiblingParent>
   );
 };

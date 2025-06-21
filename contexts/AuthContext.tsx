@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
-import { Session, User } from '@supabase/supabase-js'; // SupportedStorage and createClient might not be needed if using global
-// import { Platform } from 'react-native'; // Not needed if using global client
-import { supabase } from '@/utils/supabase'; // Import the globally configured supabase client
+import { Session, User, AuthChangeEvent } from '@supabase/supabase-js'; // Added AuthChangeEvent
+import { supabase } from '@/utils/supabase'; // Corrected import path
 
 interface AuthContextType {
   session: Session | null;
@@ -14,14 +13,13 @@ interface AuthContextType {
   onboardingStatus: string | null;
   processLogin: (session: Session) => Promise<void>;
   refreshUserProfile: () => Promise<void>; // Function to manually refresh user profile
+  currentChatMode: string;
+  setCurrentChatMode: (mode: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Use the globally configured supabase client from '@/utils/supabase'
-  // const supabase = useMemo(() => { ... }, []); // This local client initialization is removed
-
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true); // Start true
@@ -29,6 +27,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [avatarText, setAvatarText] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
   const [onboardingStatus, setOnboardingStatus] = useState<string | null>(null);
+  const [currentChatMode, setCurrentChatModeState] = useState<string>('advisor'); // Default to 'advisor'
+
+  const setCurrentChatMode = (mode: string) => {
+    console.log(`[AuthContext] Chat mode changed to: ${mode}`); // Added log
+    setCurrentChatModeState(mode);
+  };
 
   const fetchUserProfileAndRelatedData = async (currentUserId: string | undefined) => {
     if (!currentUserId) {
@@ -36,10 +40,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setAvatarText(null);
       setPhoneNumber(null);
       setOnboardingStatus(null);
-      return; // No user, clear profile data
+      return; 
     }
 
-    // console.log('[AuthContext] fetchUserProfileAndRelatedData for:', currentUserId);
     try {
       const { data: userData, error: userError } = await supabase
         .from('users')
@@ -50,15 +53,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (userError) throw userError;
 
       if (userData) {
+        console.log(`[AuthContext] fetchUserProfileAndRelatedData - User data found:`, { fullName: userData.full_name, phoneNumber: userData.phone_number, onboardingStatus: userData.onboarding_status });
         setFullName(userData.full_name || null);
         setPhoneNumber(userData.phone_number || null);
         setOnboardingStatus(userData.onboarding_status || null);
-        // console.log('[AuthContext] User profile fetched:', userData);
-
-        // Fetch avatar text based on email (assuming user object is available on session)
-        // This might be slightly delayed if session.user isn't immediately populated with email.
-        // Supabase's user object on the session should have the email.
-        const authUser = session?.user; // Use the current session's user object
+        console.log(`[AuthContext] fetchUserProfileAndRelatedData - onboardingStatus set to: ${userData.onboarding_status}`);
+        
+        const authUser = session?.user; 
         if (authUser?.email) {
           const emailParts = authUser.email.split('@')[0];
           const initialLetters = emailParts.substring(0, 2).toUpperCase();
@@ -67,78 +68,88 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setAvatarText(null);
         }
       } else {
-        // No user data found, clear profile
+        console.log(`[AuthContext] fetchUserProfileAndRelatedData - No user data found for user ID: ${currentUserId}. Clearing profile.`);
         setFullName(null);
         setAvatarText(null);
         setPhoneNumber(null);
         setOnboardingStatus(null);
+        console.log(`[AuthContext] fetchUserProfileAndRelatedData - onboardingStatus set to: null (no data)`);
       }
     } catch (error) {
-      console.error('Error in fetchUserProfileAndRelatedData:', error);
+      console.error('[AuthContext] Error in fetchUserProfileAndRelatedData:', error);
       setFullName(null);
       setAvatarText(null);
       setPhoneNumber(null);
       setOnboardingStatus(null);
+      console.log(`[AuthContext] fetchUserProfileAndRelatedData - onboardingStatus set to: null (due to error)`);
     }
+    console.log(`[AuthContext] fetchUserProfileAndRelatedData finished for user ID: ${currentUserId}`);
   };
 
   useEffect(() => {
-    setIsLoading(true); // Set loading true on initial mount
-    // console.log('[AuthContext] Initializing, setIsLoading to true.');
+    console.log('[AuthContext] Initializing AuthProvider, setting isLoading to true.');
+    setIsLoading(true); 
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (_event, currentSession) => {
-        // console.log(`[AuthContext] Supabase auth event: ${_event}`);
-        // console.log(`[AuthContext] Current session from event:`, currentSession ? 'Exists' : 'Null');
-
+      async (event: AuthChangeEvent, currentSession: Session | null) => { // Explicitly type event and currentSession
+        console.log(`[AuthContext] onAuthStateChange event: ${event}, session available: ${!!currentSession}. Current isLoading before processing: ${isLoading}`);
         setSession(currentSession);
         const currentUser = currentSession?.user || null;
         setUser(currentUser);
 
-        // Regardless of event type, if we have a currentUser, try to fetch their profile.
-        // If no currentUser, profile data will be cleared by fetchUserProfileAndRelatedData.
-        await fetchUserProfileAndRelatedData(currentUser?.id);
-
-        setIsLoading(false); // Set loading to false AFTER session/user update and profile fetch attempt
-        // console.log('[AuthContext] onAuthStateChange processed, setIsLoading to false.');
+        if (currentUser) {
+          console.log(`[AuthContext] Fetching profile for user: ${currentUser.id}`);
+          await fetchUserProfileAndRelatedData(currentUser.id);
+          console.log(`[AuthContext] Profile fetch complete for user: ${currentUser.id}`);
+        } else {
+          // Clear profile data if no user
+          setFullName(null);
+          setAvatarText(null);
+          setPhoneNumber(null);
+          setOnboardingStatus(null);
+          console.log(`[AuthContext] Cleared profile data as no user in session. onboardingStatus is now null.`);
+        }
+        
+        // After the first auth event, the initial loading is complete.
+        setIsLoading(false);
+        console.log(`[AuthContext] End of onAuthStateChange for event ${event}. isLoading is now false.`);
       }
     );
 
     return () => {
+      console.log('[AuthContext] Unsubscribing from onAuthStateChange.');
       authListener.subscription.unsubscribe();
     };
-  }, []); // Empty dependency array means this runs once on mount and cleans up on unmount
+  }, []); 
 
   const signOut = async () => {
-    // console.log('[AuthContext] signOut called, setIsLoading to true.');
-    setIsLoading(true); // Set loading true before sign out
+    console.log('[AuthContext] signOut called. Setting isLoading to true.');
+    setIsLoading(true); 
     const { error } = await supabase.auth.signOut();
     if (error) {
-      console.error('Error signing out:', error);
-      setIsLoading(false); // If signout fails, stop loading
-      // console.log('[AuthContext] SignOut error, setIsLoading to false.');
+      console.error('[AuthContext] Error signing out:', error);
+      // isLoading will be set to false by onAuthStateChange 'SIGNED_OUT' event
+      // If onAuthStateChange doesn't fire or fails, isLoading might remain true.
+      // However, standard behavior is for SIGNED_OUT to fire.
+    } else {
+      console.log('[AuthContext] signOut successful. Waiting for onAuthStateChange(SIGNED_OUT).');
     }
-    // onAuthStateChange will handle setting session/user to null and then isLoading to false.
   };
 
   const processLogin = async (newSession: Session) => {
-    // This function is called from login.tsx after a successful manual signIn.
-    // onAuthStateChange will ALSO fire with a SIGNED_IN event and the newSession.
-    // To avoid duplicate profile fetches and state settings, this function
-    // should ideally do nothing or very little, relying on onAuthStateChange.
-    // console.log('[AuthContext] processLogin called. Relying on onAuthStateChange for state updates.');
-    // If absolutely necessary, you could set isLoading true here, but onAuthStateChange
-    // should also set it true then false.
-    // For now, let it be minimal. The key is that onAuthStateChange is the ultimate handler.
+    console.log('[AuthContext] processLogin called. This function currently relies on onAuthStateChange.');
+    // Relies on onAuthStateChange
   };
 
   const refreshUserProfile = async () => {
     if (user?.id) {
-      // console.log('[AuthContext] refreshUserProfile called, setIsLoading to true.');
+      console.log(`[AuthContext] refreshUserProfile called for user: ${user.id}. Setting isLoading to true.`);
       setIsLoading(true);
       await fetchUserProfileAndRelatedData(user.id);
+      console.log(`[AuthContext] refreshUserProfile finished for user: ${user.id}. Setting isLoading to false.`);
       setIsLoading(false);
-      // console.log('[AuthContext] refreshUserProfile done, setIsLoading to false.');
+    } else {
+      console.log('[AuthContext] refreshUserProfile called but no user ID available.');
     }
   };
 
@@ -154,7 +165,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         phoneNumber,
         onboardingStatus,
         processLogin,
-        refreshUserProfile, // Provide the refresh function
+        refreshUserProfile,
+        currentChatMode,
+        setCurrentChatMode,
       }}>
       {children}
     </AuthContext.Provider>

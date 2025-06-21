@@ -1,8 +1,7 @@
 import React, { useEffect, useState, memo, useRef } from 'react'; // Added useRef
 import { View, Text, Image, StyleSheet, TouchableOpacity, ActivityIndicator, Pressable, Alert } from 'react-native'; // Added Alert
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
-import SourcesDisplay from './SourcesDisplay'; // Import SourcesDisplay
-import type { BottomSheetModal } from '@gorhom/bottom-sheet'; // Reverted to BottomSheetModal
+import CustomBottomSheet from './CustomBottomSheet'; // Import the new custom bottom sheet
 import Clipboard from '@react-native-clipboard/clipboard'; // If used for copy
 import MarkdownDisplay from 'react-native-markdown-display';
 import { Message } from '@/utils/Database'; // Import your Supabase Message type
@@ -27,14 +26,16 @@ type ChatMessageProps = Omit<ChatPageMessage, 'key'> & { // Omit 'key' from Chat
 
 // Props now directly use the Message type from Supabase
 const ChatMessage = (props: ChatMessageProps) => { // Add loading prop for streaming indicator
-  const bottomSheetModalRef = useRef<BottomSheetModal>(null); // Reverted to BottomSheetModal
+  // const modalizeRef = useRef<Modalize>(null); // Commented out old ref
+  const customBottomSheetRef = useRef<any>(null); // Placeholder for new custom bottom sheet ref
+  const [isCustomSheetVisible, setIsCustomSheetVisible] = useState(false); // State for new custom bottom sheet
 
   // Removed verbose log for props.sources content
   // if (props.sources && props.sources.length > 0) {
   //   console.log('[ChatMessage] props.sources AS RECEIVED (first item):', JSON.stringify(props.sources[0], null, 2));
   // }
   const [feedback, setFeedback] = useState<string | null>(props.user_feedback || null);
-  const [isSourcesModalVisible, setIsSourcesModalVisible] = useState(false); // State for sources modal
+  // const [isSourcesModalVisible, setIsSourcesModalVisible] = useState(false); // No longer needed for Modalize direct open/close
   // Destructure new props
   const { is_user_message, loading, isError, handleRetry, messageKeyValue, message_id } = props;
   const uniqueMessageId = messageKeyValue || message_id; // Use messageKeyValue (formerly item.key) or message_id
@@ -246,9 +247,9 @@ const ChatMessage = (props: ChatMessageProps) => { // Add loading prop for strea
             {!is_user_message && props.sources && props.sources.length > 0 && (
               <TouchableOpacity 
                 onPress={() => {
-                  console.log('[ChatMessage] Sources button pressed. Setting isSourcesModalVisible to true.');
-                  // bottomSheetModalRef.current?.present(); // Removed direct call, rely on SourcesDisplay useEffect via isVisible
-                  setIsSourcesModalVisible(true); 
+                  console.log('[ChatMessage] Sources button pressed. Attempting to show custom bottom sheet.');
+                  setIsCustomSheetVisible(true); // This will control the new custom bottom sheet
+                  // customBottomSheetRef.current?.open(); // Or similar method for custom sheet
                 }} 
                 style={[styles.feedbackButton, styles.sourcesButtonInternal]}>
                 <Ionicons name="library-outline" size={18} color="#777" />
@@ -312,35 +313,26 @@ const ChatMessage = (props: ChatMessageProps) => { // Add loading prop for strea
         )}
       </Animated.View>
 
-      {/* Sources Modal Display */}
+      {/* Custom Bottom Sheet Implementation */}
       {!is_user_message && props.sources && props.sources.length > 0 && (
-        <SourcesDisplay
-          ref={bottomSheetModalRef} // Pass the ref
-          isVisible={isSourcesModalVisible}
+        <CustomBottomSheet
+          // ref={customBottomSheetRef} // CustomBottomSheet doesn't use a ref from parent to open/close, it uses isVisible prop
+          isVisible={isCustomSheetVisible}
           sources={props.sources.map(s => {
-            // Actual structure of s (from ChatPage.Message.sources, populated by API):
-            // s: { id: string; content: string; metadata: { law_name?: string; article_number?: string; processed_text?: string; ... } }
-            // Target structure for SourceFromAPI: { id: string; content: string; metadata: { title?, law_name?, article_number? } }
-            
-            // Log the individual source item 's' from props.sources before mapping
-            // console.log('[ChatMessage] Mapping source item s:', JSON.stringify(s, null, 2));
-
+            // Mapping logic remains the same as it was correct for the data structure
             const mappedSource = {
               id: s.id,
-              content: s.content, // Use s.content directly
+              content: s.content, 
               metadata: {
-                title: s.metadata?.law_name || s.metadata?.processed_text?.substring(0, 70) || 'المصدر', // Use law_name or a snippet of processed_text as title
-                law_name: s.metadata?.law_name, // Keep original law_name if available
-                article_number: s.metadata?.article_number, // Keep original article_number if available
+                title: s.metadata?.law_name || s.metadata?.processed_text?.substring(0, 70) || 'المصدر', 
+                law_name: s.metadata?.law_name, 
+                article_number: s.metadata?.article_number, 
               }
             };
-            // Log the mapped source item
-            // console.log('[ChatMessage] Mapped to SourceFromAPI:', JSON.stringify(mappedSource, null, 2));
             return mappedSource;
           })}
           onClose={() => {
-            setIsSourcesModalVisible(false);
-            // bottomSheetModalRef.current?.dismiss(); // Already handled by useEffect in SourcesDisplay based on isVisible
+            setIsCustomSheetVisible(false);
           }}
         />
       )}

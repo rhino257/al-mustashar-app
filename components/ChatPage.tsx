@@ -3,12 +3,12 @@ import Colors from '@/constants/Colors';
 import { defaultStyles } from '@/constants/Styles';
 import { storage } from '@/utils/Storage';
 import { Stack, useLocalSearchParams } from 'expo-router';
-// Import useRef
-import { useEffect, useState, useRef } from 'react';
+// Import useRef and useCallback
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Image, View, StyleSheet, KeyboardAvoidingView, Platform, Alert, Text } from 'react-native';
 import { useHeaderHeight } from '@react-navigation/elements';
 import NetInfo from '@react-native-community/netinfo'; // Import NetInfo
-import { useMMKVString } from 'react-native-mmkv';
+// Removed useMMKVString as it's no longer used for gptVersion for persona
 // Import FlashList type for the ref
 import { FlashList } from '@shopify/flash-list';
 import ChatMessage from '@/components/ChatMessage';
@@ -57,8 +57,9 @@ export interface Message {
 const ASSISTANT_USER_ID_CONST = 'ASSISTANT_USER_ID';
 
 const ChatPage = () => {
-  const [gptVersion, setGptVersion] = useMMKVString('gptVersion', storage);
-  const { user } = useAuth();
+  // const [gptVersion, setGptVersion] = useMMKVString('gptVersion', storage); // Removed, persona comes from AuthContext
+  const { user, currentChatMode } = useAuth(); // Added currentChatMode from useAuth
+  const currentChatModeRef = useRef(currentChatMode); // Ref to hold the latest currentChatMode
   const [height, setHeight] = useState(0);
   const [messages, setMessages] = useState<Message[]>([]);
   let { id } = useLocalSearchParams<{ id: string }>();
@@ -72,13 +73,23 @@ const ChatPage = () => {
   // Popup message state
   const [showPopupMessage, setShowPopupMessage] = useState(false);
   const [popupMessageContent, setPopupMessageContent] = useState('');
-  const popupTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const popupTimerRef = useRef<any | null>(null); // Changed type to any to resolve NodeJS.Timeout/number conflict
+
+  // Character limit warning popup state
+  const [showCharLimitWarning, setShowCharLimitWarning] = useState(false);
+  const [charLimitWarningContent, setCharLimitWarningContent] = useState('');
+  const charLimitWarningTimerRef = useRef<any | null>(null);
 
   // Ref to store the stream closer function
   const streamCloserRef = useRef<(() => void) | null>(null);
 
   // --- 1. Create a Ref for FlashList ---
   const listRef = useRef<FlashList<Message>>(null);
+
+  // Effect to keep currentChatModeRef updated
+  useEffect(() => {
+    currentChatModeRef.current = currentChatMode;
+  }, [currentChatMode]);
 
   // --- Effect for Loading Initial Messages ---
   useEffect(() => {
@@ -143,6 +154,19 @@ const ChatPage = () => {
     }, 2000); // Hide after 2 seconds
   };
 
+  const displayCharLimitWarningPopup = (text: string) => {
+    setCharLimitWarningContent(text);
+    setShowCharLimitWarning(true);
+
+    if (charLimitWarningTimerRef.current) {
+      clearTimeout(charLimitWarningTimerRef.current);
+    }
+
+    charLimitWarningTimerRef.current = setTimeout(() => {
+      setShowCharLimitWarning(false);
+    }, 2000); // Hide after 2 seconds
+  };
+
   const onLayout = (event: any) => {
     const { height: layoutHeight } = event.nativeEvent.layout;
     setHeight(layoutHeight / 2);
@@ -197,7 +221,12 @@ const ChatPage = () => {
       if (!currentActiveChatId) {
         console.log("[ChatPage] Creating new chat session.");
         try {
-          const newChatSession = await addChat(currentUserId, text, gptVersion || 'default');
+          // Use currentChatMode (e.g., 'advisor') for the chat session's version/type if applicable,
+          // or a default if your addChat function expects something specific.
+          // For now, assuming addChat might use it similarly or it's for a different purpose.
+          // If addChat's third parameter was strictly for 'gptVersion' and not persona, this might need adjustment.
+          // However, the primary goal here is passing agent_persona to streamRagQuery.
+          const newChatSession = await addChat(currentUserId, text, currentChatMode || 'default');
           currentActiveChatId = newChatSession.chat_id;
           setChatId(currentActiveChatId);
           console.log(`[ChatPage] New chat created with ID: ${currentActiveChatId}`);
@@ -273,10 +302,28 @@ const ChatPage = () => {
         return; // Do not proceed with starting a new stream
     }
 
-    console.log(`[ChatPage] Starting RAG stream for chat ${currentActiveChatId} with query: "${text}", use_reranker: ${use_reranker}`);
+    // Map currentChatMode to agent_persona for the API
+    let apiAgentPersona: string | undefined;
+    if (currentChatMode === 'advisor') {
+      apiAgentPersona = "المستشار";
+    } else if (currentChatMode === 'smart') {
+      apiAgentPersona = "الذكي";
+    } else if (currentChatMode === 'dumb') {
+      apiAgentPersona = "الغبي";
+    }
+    // If currentChatMode is none of these, apiAgentPersona remains undefined,
+    // and the field will be omitted by utils/api.ts
+
+    console.log(`[ChatPage] Starting RAG stream for chat ${currentActiveChatId} with query: "${text}", use_reranker: ${use_reranker}, agent_persona: ${apiAgentPersona}`);
     // Store the closer function returned by streamRagQuery
     streamCloserRef.current = await streamRagQuery(
-      { query: text, chat_id: currentActiveChatId!, user_id: currentUserId, use_reranker: use_reranker }, // Added user_id and use_reranker
+      {
+        query: text,
+        chat_id: currentActiveChatId!,
+        user_id: currentUserId,
+        use_reranker: use_reranker,
+        agent_persona: apiAgentPersona, // Pass the mapped agent_persona
+      },
       (receivedStreamEvent: StreamEvent) => {
         const eventType = receivedStreamEvent.event;
         const rawStreamData = receivedStreamEvent.data; // Keep raw data for logging
@@ -496,7 +543,8 @@ const ChatPage = () => {
   };
 
   // --- Function to handle retrying a message ---
-  const handleRetry = async (messageKey: string) => {
+  // Wrap with useCallback to ensure it gets the latest currentChatMode
+  const handleRetry = useCallback(async (messageKey: string) => {
     const messageToRetry = messages.find(msg => msg.key === messageKey);
 
     if (!messageToRetry || !messageToRetry.originalUserQuery || !messageToRetry.chat_id || !messageToRetry.originalUserId) {
@@ -526,9 +574,28 @@ const ChatPage = () => {
 
     const { originalUserQuery, chat_id: retryChatId, originalUserId: retryUserId } = messageToRetry;
 
+    // Map currentChatMode (from ref) to agent_persona for the API for retry
+    let retryApiAgentPersona: string | undefined;
+    const modeFromRef = currentChatModeRef.current; // Use the latest value from the ref
+
+    if (modeFromRef === 'advisor') {
+      retryApiAgentPersona = "المستشار";
+    } else if (modeFromRef === 'smart') {
+      retryApiAgentPersona = "الذكي";
+    } else if (modeFromRef === 'dumb') {
+      retryApiAgentPersona = "الغبي";
+    }
+
+    console.log(`[ChatPage] Retrying RAG stream for chat ${retryChatId} with query: "${originalUserQuery}", use_reranker: ${isLampModeActive}, agent_persona: ${retryApiAgentPersona} (from ref: ${modeFromRef})`);
     // Re-use streamRagQuery logic, targeting the specific messageKey for updates
     streamCloserRef.current = await streamRagQuery(
-      { query: originalUserQuery, chat_id: retryChatId, user_id: retryUserId, use_reranker: isLampModeActive },
+      {
+        query: originalUserQuery,
+        chat_id: retryChatId,
+        user_id: retryUserId,
+        use_reranker: isLampModeActive,
+        agent_persona: retryApiAgentPersona, // Pass mapped agent_persona for retry
+      },
       (receivedStreamEvent: StreamEvent) => {
         const eventType = receivedStreamEvent.event;
         const rawStreamData = receivedStreamEvent.data;
@@ -619,7 +686,7 @@ const ChatPage = () => {
         streamCloserRef.current = null;
       }
     );
-  };
+  }, [messages, isLampModeActive, user, chatId]); // currentChatMode removed from deps as its value is read from ref
 
   const toggleLampMode = () => {
     setIsLampModeActive(prevState => !prevState);
@@ -672,6 +739,13 @@ const ChatPage = () => {
         </View>
       )}
 
+      {/* Character Limit Warning Popup */}
+      {showCharLimitWarning && (
+        <View style={[styles.popupMessageView, styles.charLimitWarningPopup]}>
+          <Text style={styles.popupMessageText}>{charLimitWarningContent}</Text>
+        </View>
+      )}
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={70}
@@ -686,6 +760,7 @@ const ChatPage = () => {
           isLampActive={isLampModeActive} // Pass the state for lamp icon
           onToggleLamp={toggleLampMode} // Pass the toggle function for lamp icon
           displayPopupMessage={displayPopupMessage} // Pass the display function
+          displayCharLimitWarning={displayCharLimitWarningPopup} // Pass the new char limit warning display function
         />
       </KeyboardAvoidingView>
     </View>
@@ -709,6 +784,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
+  },
+  charLimitWarningPopup: { // Style for the character limit warning popup
+    backgroundColor: Colors.danger, // Use existing Colors.danger
   },
   popupMessageText: { // Style for the popup message text
     color: Colors.white,

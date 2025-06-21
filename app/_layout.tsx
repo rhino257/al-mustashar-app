@@ -7,7 +7,7 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext'; // Import AuthPr
 import { Ionicons } from '@expo/vector-icons';
 import { ActivityIndicator, TouchableOpacity, View, I18nManager } from 'react-native'; // Added I18nManager
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { BottomSheetModalProvider } from '@gorhom/bottom-sheet'; // Add this import
+// import { BottomSheetModalProvider } from '@gorhom/bottom-sheet'; // REMOVE THIS IMPORT
 import { configureReanimatedLogger } from 'react-native-reanimated';
 import * as Sentry from "@sentry/react-native"; // Import Sentry
 import { StatusBar } from 'expo-status-bar'; // Added StatusBar import
@@ -72,66 +72,78 @@ const InitialLayout = () => {
     // font loading is done AND the initial Supabase auth loading is done.
     // It gives a brief moment for the component tree to stabilize.
     if (loaded && !isSupabaseAuthLoading) {
+      console.log('[AppLayout] Fonts loaded and Supabase auth is not loading. Setting timer for isLayoutReady.');
       const timer = setTimeout(() => {
         setIsLayoutReady(true);
-        // console.log('[AppLayout] Layout marked as ready.'); // Diagnostic
+        console.log('[AppLayout] Layout marked as ready (isLayoutReady: true).'); 
       }, 100); // Small delay, e.g., 50-100ms. Adjust if needed.
       return () => clearTimeout(timer);
     } else {
+      console.log(`[AppLayout] Conditions for setting isLayoutReady timer not met. loaded: ${loaded}, isSupabaseAuthLoading: ${isSupabaseAuthLoading}`);
       setIsLayoutReady(false); // Reset if dependencies change
     }
   }, [loaded, isSupabaseAuthLoading]);
 
   // Redirection logic based on Supabase Auth state AND layout readiness
   useEffect(() => {
-    // console.log('[AppLayout] Redirection useEffect triggered. States:', { loaded, isSupabaseAuthLoading, isLayoutReady, sessionExists: !!session, userExists: !!user, onboardingStatus }); // Diagnostic
+    console.log('[AppLayout] Redirection useEffect triggered. States:', { loaded, isSupabaseAuthLoading, isLayoutReady, sessionExists: !!session, userExists: !!user, onboardingStatus }); 
     
     // Wait for font loading, Supabase auth, AND local layout readiness
     if (!loaded || isSupabaseAuthLoading || !isLayoutReady) {
-      // console.log('[AppLayout] Conditions for navigation not met, returning.'); // Diagnostic
+      console.log(`[AppLayout] Conditions for navigation not met, returning. loaded: ${loaded}, isSupabaseAuthLoading: ${isSupabaseAuthLoading}, isLayoutReady: ${isLayoutReady}`); 
       return;
     }
 
-    const currentRoute = segments.join('/');
+    const currentRoute = segments.join('/') || 'index'; // Default to 'index' if segments empty
     const inAuthGroup = segments[0] === '(auth)';
-    // console.log('[AppLayout] Current route for redirection check:', currentRoute); // Diagnostic
+    console.log(`[AppLayout] Navigation conditions met. Current route for redirection check: ${currentRoute}, InAuthGroup: ${inAuthGroup}`);
 
     if (session && user) { // User is signed in and user object is available
-      // console.log('[AppLayout] User is signed in. Onboarding status:', onboardingStatus); // Diagnostic
+      // **** ADD THIS CHECK ****
+      if (onboardingStatus === null) {
+        console.log(`[AppLayout] User signed in, but onboardingStatus is still null. Waiting for it to be fetched before deciding on onboarding/chat navigation.`);
+        return; // Wait for onboardingStatus to be updated by AuthContext. The LoadingScreen will persist.
+      }
+      // **** END OF ADDED CHECK ****
+
+      console.log(`[AppLayout] User is signed in. Onboarding status: ${onboardingStatus}`); 
       if (onboardingStatus && onboardingStatus !== 'completed') {
         // Onboarding is not complete, redirect to onboarding screen
         if (currentRoute !== '(auth)/onboarding') {
-          // console.log('[AppLayout] Redirecting to /onboarding. Current route:', currentRoute); // Diagnostic
+          console.log(`[AppLayout] Redirecting to /onboarding. Current route: ${currentRoute}`); 
           router.replace('/(auth)/onboarding');
         }
       } else if (onboardingStatus === 'completed') {
         // Onboarding is complete
-        if (currentRoute === '(auth)/onboarding' || !inAuthGroup || currentRoute === 'index' || currentRoute === 'login' || currentRoute === '') {
-          // If on onboarding screen OR outside auth group (or on initial public screens), redirect to main app
-          // console.log('[AppLayout] Onboarding complete. Redirecting to /new chat. Current route:', currentRoute); // Diagnostic
+        if (currentRoute === '(auth)/onboarding' || !inAuthGroup || currentRoute === 'index' || currentRoute === 'login') {
+          console.log(`[AppLayout] Onboarding complete. Redirecting to /new chat. Current route: ${currentRoute}`); 
           router.replace('/(auth)/(drawer)/(chat)/new');
+        } else {
+          console.log(`[AppLayout] Onboarding complete. User already in authenticated section: ${currentRoute}. No redirection needed.`);
         }
-        // If already inAuthGroup (and not onboarding) they are likely on a valid authenticated page.
+      } else {
+        console.log(`[AppLayout] User signed in, but onboardingStatus is: ${onboardingStatus}. Waiting for status or further logic.`);
       }
-      // If onboardingStatus is null but session & user exist, isSupabaseAuthLoading should have covered this.
     } else if (!session && inAuthGroup) {
       // User is NOT signed in, but is trying to access a route within the '(auth)' group.
-      // console.log('[AppLayout] No session, but in auth group. Redirecting to /. Current route:', currentRoute); // Diagnostic
+      console.log(`[AppLayout] No session, but in auth group. Redirecting to /. Current route: ${currentRoute}`); 
       router.replace('/');
-    } else if (!session && currentRoute !== '' && currentRoute !== 'login' && currentRoute !== 'index') {
+    } else if (!session && currentRoute !== 'index' && currentRoute !== 'login') {
       // User is not signed in and on some other page (e.g. deep link) that isn't the entry or login
-      // console.log('[AppLayout] No session, on a public non-entry/login page. Optionally redirecting to /. Current route:', currentRoute); // Diagnostic
-      // router.replace('/'); // Optional: redirect to home if on an unknown public path
+      console.log(`[AppLayout] No session, on a public non-entry/login page: ${currentRoute}. Redirecting to /. Current route: ${currentRoute}`); 
+      router.replace('/'); 
+    } else {
+      console.log(`[AppLayout] No redirection condition met. session: ${!!session}, currentRoute: ${currentRoute}, inAuthGroup: ${inAuthGroup}`);
     }
   }, [loaded, isSupabaseAuthLoading, isLayoutReady, session, user, onboardingStatus, segments, router]);
 
   // Render LoadingScreen when fonts, auth state, or local layout are not ready
   if (!loaded || isSupabaseAuthLoading || !isLayoutReady) {
-    // console.log('[AppLayout] Rendering LoadingScreen.'); // Diagnostic
+    console.log(`[AppLayout] Rendering LoadingScreen. loaded: ${loaded}, isSupabaseAuthLoading: ${isSupabaseAuthLoading}, isLayoutReady: ${isLayoutReady}`);
     return <LoadingScreen />;
   }
 
-  // console.log('[AppLayout] Rendering Stack navigator.'); // Diagnostic
+  console.log('[AppLayout] Rendering Stack navigator. All loading conditions passed.'); 
   return (
     <Stack>
       <Stack.Screen
@@ -163,10 +175,10 @@ const RootLayoutNav = () => {
     // <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY!} tokenCache={tokenCache}>
       <AuthProvider>
         <GestureHandlerRootView style={{ flex: 1 }}>
-          <BottomSheetModalProvider>
+          {/* <BottomSheetModalProvider> // REMOVE THIS WRAPPER */}
             <StatusBar style="light" backgroundColor="transparent" translucent={true} />
             <InitialLayout />
-          </BottomSheetModalProvider>
+          {/* </BottomSheetModalProvider> // REMOVE THIS WRAPPER */}
         </GestureHandlerRootView>
       </AuthProvider>
     // </ClerkProvider>

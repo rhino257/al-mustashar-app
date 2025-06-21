@@ -3,7 +3,7 @@ import { SupportedStorage } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 import { Buffer } from 'buffer'; // Import Buffer for Base64 encoding/decoding
 
-const ADAPTER_DEBUG = false; // Set to true to enable detailed logs
+const ADAPTER_DEBUG = true; // Set to true to enable detailed logs
 
 // Define a conservative chunk size. SecureStore has limits (e.g., 2KB on Android, 4KB on iOS).
 // Base64 encoding increases size by ~33%, so adjust CHUNK_SIZE accordingly if storing Base64.

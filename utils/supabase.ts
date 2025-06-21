@@ -23,6 +23,7 @@ if (!supabaseAnonKey) {
 
 const globalStorageAdapter = Platform.OS === 'web' ? undefined : ExpoSecureStoreAdapter; // Use ExpoSecureStoreAdapter for native
 
+console.time('[SupabaseClient] InitializationTime');
 export const supabase = createClient(
   supabaseUrl!,
   supabaseAnonKey!,
@@ -35,3 +36,4 @@ export const supabase = createClient(
     },
   }
 );
+console.timeEnd('[SupabaseClient] InitializationTime');

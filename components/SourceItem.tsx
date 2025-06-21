@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, ScrollView } from 'react-native'; // Added ScrollView
 import Colors from '@/constants/Colors'; // Assuming you have a Colors file
 
 // Updated interface to match the actual data structure from logs
@@ -34,9 +34,15 @@ const SourceItem: React.FC<SourceItemProps> = ({ source }) => {
       <Text style={styles.title} numberOfLines={2} ellipsizeMode="tail">
         {displayTitle}
       </Text>
-      <Text style={styles.snippet} numberOfLines={3} ellipsizeMode="tail">
-        {source.content}
-      </Text>
+      <ScrollView 
+        style={styles.contentScrollView} 
+        showsVerticalScrollIndicator={true} // Temporarily enable scrollbar
+        nestedScrollEnabled={true} // Might help if there are nested scroll conflicts, though unlikely here
+      >
+        <Text style={styles.contentText}>
+          {source.content}
+        </Text>
+      </ScrollView>
     </View>
   );
 };
@@ -56,21 +62,30 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 3,
-    minHeight: 100, // Ensure a minimum height for the card
-    justifyContent: 'space-between',
+    // minHeight: 100, // Remove minHeight, let content define it or set a fixed height for the card
+    height: CARD_WIDTH * 1.2, // Example: Make card height proportional to width, or a fixed value like 250
+    flexDirection: 'column', // Ensure children are laid out vertically
+    // justifyContent: 'space-between', // Remove or adjust as contentScrollView will take space
   },
   title: {
-    fontSize: 15, // Slightly smaller to accommodate potentially longer titles with article number
+    fontSize: 15, 
     fontWeight: 'bold',
-    color: Colors.white, // Assuming dark background for card
+    color: Colors.white, 
     marginBottom: 8,
-    textAlign: 'right', // Align text to the right for Arabic
+    textAlign: 'right', 
+    paddingHorizontal: 5, // Add some padding if card padding is removed for ScrollView
   },
-  snippet: {
+  contentScrollView: {
+    flex: 1, // Allow ScrollView to take available space after title
+    marginVertical: 5,
+    // backgroundColor: 'rgba(0, 255, 0, 0.1)', // Removed temporary background
+  },
+  contentText: { // Renamed from snippet
     fontSize: 14,
-    color: Colors.lightGray, // Lighter text for snippet
-    textAlign: 'right', // Align text to the right for Arabic
+    color: Colors.lightGray, 
+    textAlign: 'right', 
     lineHeight: 20,
+    paddingHorizontal: 5, // Add some padding if card padding is removed for ScrollView
   },
 });
 

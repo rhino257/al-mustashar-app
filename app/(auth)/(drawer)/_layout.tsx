@@ -21,8 +21,8 @@ import { getChats, renameChat, deleteChatViaFunction, Chat, archiveAndDeleteChat
 import ChatListItemMenu from '@/components/ChatListItemMenu'; // Added Import
 import RenameChatModal from '@/components/RenameChatModal'; // Added Import
 import { useDrawerStatus } from '@react-navigation/drawer';
-import { useAuth }
-from '@/contexts/AuthContext'; // Import useAuth
+import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
+import ChatModeDropDown from '@/components/ChatModeDropDown'; // Import the new dropdown
 // Removed Chat import from utils/Interfaces
 import { Keyboard, Pressable } from 'react-native'; // Added Pressable
 
@@ -34,7 +34,7 @@ const [history, setHistory] = useState<Chat[]>([]); // Use new Chat type
 const router = useRouter();
 const localSearchParams = useLocalSearchParams<{ id?: string }>(); // Added
 const [showFeatureUnavailableMessage, setShowFeatureUnavailableMessage] = useState(false);
-const timerRef = useRef<NodeJS.Timeout | null>(null); // Ref to store the timeout ID
+const timerRef = useRef<number | null>(null); // Ref to store the timeout ID
 const [activePopupCoords, setActivePopupCoords] = useState<{ y: number; height: number } | null>(null);
 const itemRefs = useRef<{ [key: string]: View | null }>({});
 
@@ -227,7 +227,7 @@ underlineColorAndroid="transparent"
       return (
         <View // This is the wrapper View
           key={route.key}
-          ref={(el) => (itemRefs.current[route.key] = el)} // Assign ref to the wrapper View
+          ref={(el) => { itemRefs.current[route.key] = el; }} // Assign ref to the wrapper View
           style={[
             isFeatureUnavailable && { opacity: 0.5 },
           ]}
@@ -259,15 +259,17 @@ underlineColorAndroid="transparent"
                 const currentItemRef = itemRefs.current[route.key];
                 if (currentItemRef) {
                   currentItemRef.measureInWindow((x, y, w, h) => {
-                    // Adjust y by subtracting the safe area 'top' because the popup is positioned
-                    // inside CustomDrawerContent which is already offset by 'top'.
                     handleFeatureUnavailable({ y: y - top, height: h });
                   });
                 } else {
-                  handleFeatureUnavailable(null); // No ref, can't measure
+                  handleFeatureUnavailable(null); 
                 }
               } else {
-                if (isFocused) {
+                // Explicitly handle navigation for 'new chat'
+                if (route.name === '(chat)/new') {
+                  router.push('/(auth)/(drawer)/(chat)/new');
+                  props.navigation.dispatch(DrawerActions.closeDrawer());
+                } else if (isFocused) {
                   props.navigation.dispatch(DrawerActions.closeDrawer());
                 } else {
                   props.navigation.navigate(route.name, route.params);
@@ -296,7 +298,7 @@ underlineColorAndroid="transparent"
         <View pointerEvents="none" style={{width: '100%'}}> 
           {/* pointerEvents="none" to ensure Pressable gets events */}
           <DrawerItem
-            label={() => <Text style={{ color: Colors.white, fontSize: 15, marginLeft: -16 /* Adjust to align text if needed */ }}>{chat.chat_name}</Text>}
+            label={() => <Text style={{ color: Colors.white, fontSize: 15, marginLeft: -16 /* Adjust to align text if needed */ }} numberOfLines={1} ellipsizeMode="tail">{chat.chat_name}</Text>}
             inactiveTintColor={Colors.white}
             focused={localSearchParams.id === chat.chat_id} // Highlight if it's the active chat
             activeBackgroundColor={Colors.chatgptGray} // A subtle background for active/focused
@@ -381,6 +383,13 @@ underlineColorAndroid="transparent"
 
 const Layout = () => {
   const dimensions = useWindowDimensions();
+  const { currentChatMode, setCurrentChatMode } = useAuth(); // Get mode from context
+
+  const chatModeItems = [
+    { key: 'advisor', title: 'المستشار' },
+    { key: 'smart', title: 'الذكي' },
+    { key: 'dumb', title: 'الغبي' },
+  ];
   // Removed unused router and navigation hooks from Layout scope,
   // navigation will be passed to options functions.
 
@@ -397,7 +406,7 @@ const Layout = () => {
         ),
         headerTransparent: true,
         headerStyle: {
-          // backgroundColor: Colors.chatgptBackground, // Removed for transparency
+          backgroundColor: Colors.chatgptBackground, // Ensure a dark background for the header area
         },
         headerTintColor: '#ffffff', // Set header text and icon color to white
         headerShadowVisible: false,
@@ -411,13 +420,14 @@ const Layout = () => {
       })}>
       <Drawer.Screen
         name="(chat)/new"
-        getId={() => Math.random().toString()}
+        dangerouslySingular={true}
         options={({ navigation }) => ({ // options is now a function
           headerTitle: () => (
-            <View style={{ alignItems: 'center' }}>
-              <Text style={styles.headerTitle}>المستشار</Text>
-              <Text style={styles.betaLabel}>نسخة تجريبية</Text>
-            </View>
+            <ChatModeDropDown
+              items={chatModeItems}
+              selectedModeKey={currentChatMode}
+              onSelect={setCurrentChatMode}
+            />
           ),
           headerTitleAlign: 'center',
           drawerLabel: () => ( // Custom drawerLabel for RTL
@@ -456,10 +466,11 @@ const Layout = () => {
         name="(chat)/[id]"
         options={({ navigation }) => ({ // options is now a function
           headerTitle: () => (
-            <View style={{ alignItems: 'center' }}>
-              <Text style={styles.headerTitle}>المستشار</Text>
-              <Text style={styles.betaLabel}>نسخة تجريبية</Text>
-            </View>
+            <ChatModeDropDown
+              items={chatModeItems}
+              selectedModeKey={currentChatMode}
+              onSelect={setCurrentChatMode}
+            />
           ),
           headerTitleAlign: 'center',
           drawerItemStyle: {
@@ -599,11 +610,7 @@ fontSize: 18, // Adjusted size
 fontWeight: 'bold',
 color: '#ffffff', // Set header title color to white
 },
-betaLabel: {
-  fontSize: 10,
-  color: Colors.grey,
-  marginTop: 1,
-},
+// betaLabel style removed as the label is removed
 chatsLabel: {
 fontSize: 16,
 fontWeight: 'bold',

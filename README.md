@@ -1,63 +1,105 @@
-# React Native ChatGPT Clone with Clerk & RevenueCat
+# Al-Mustashar - AI Chat Application
 
-This is a React Native ChatGPT clone using [Clerk](https://go.clerk.com/wvMHe8T) for user authentication and [RevenueCat](https://www.revenuecat.com/docs/getting-started/installation/reactnative?utm_medium=sponsored&utm_source=youtube&utm_campaign=SimonGrimm) for In-App purchases.
+Al-Mustashar is a feature-rich, AI-powered chat application built with React Native and Expo. It leverages the power of the OpenAI API for intelligent chat completions and DALL-E for image generation. The backend is powered by Supabase, providing robust authentication, database, and storage solutions.
 
-Additional features:
+## Key Features
 
-- [Expo Router](https://docs.expo.dev/routing/introduction/) file-based navigation and API Routes
-- [OpenAI API](https://platform.openai.com/) for GPT chat completions and image generation
-- [Reanimated](https://docs.swmansion.com/react-native-reanimated/) 3 for animations
-- [Gesture Handler](https://docs.swmansion.com/react-native-gesture-handler/) for gestures
-- [Redash](https://github.com/wcandillon/react-native-redash) for animated text
-- [Zeego](https://zeego.dev/start) for native menus
-- [RN MMKV](https://github.com/mrousavy/react-native-mmkv) for efficient key/value storage
-- [Expo SQLite](https://docs.expo.dev/versions/latest/sdk/sqlite-next/) for storing chats and messages
-- [Bottom Sheet](https://ui.gorhom.dev/components/bottom-sheet/) for bottom sheet component
-- [FlashList](https://shopify.github.io/flash-list/) for efficient list rendering
-- [React Native OpenAI](https://github.com/candlefinance/react-native-openai) for streaming
-- [Image Zoom](https://github.com/likashefqet/react-native-image-zoom) for image zoom component
-- [Shimmer Placeholder](https://github.com/tomzaku/react-native-shimmer-placeholder) for loading placeholders
+### Core Functionality
+- **AI Chat:** Engage in intelligent conversations with a GPT-powered chatbot using the OpenAI API.
+- **DALL-E Image Generation:** Create unique images from textual descriptions.
+- **Chat History:** All conversations are saved locally on the device using Expo SQLite for offline access.
+- **Contextual Conversations:** The application maintains conversation context, allowing for more natural and coherent interactions.
+- **Streaming Responses:** Messages from the AI are streamed in real-time for a more dynamic user experience.
 
-## Screenshots
+### Backend & Authentication
+- **Supabase Integration:** Utilizes Supabase for a complete backend solution.
+  - **Authentication:** Secure user login and management.
+  - **Database:** Storing user data and application state.
+  - **Storage:** Saving generated images and other assets.
+- **Expo Secure Store:** Securely stores sensitive user information and tokens.
 
-<div style="display: flex; flex-direction: 'row';">
-<img src="./screenshots/1.png" width=30%>
-<img src="./screenshots/2.png" width=30%>
-<img src="./screenshots/3.png" width=30%>
-<img src="./screenshots/4.png" width=30%>
-<img src="./screenshots/5.png" width=30%>
-<img src="./screenshots/6.png" width=30%>
-<img src="./screenshots/7.png" width=30%>
-<img src="./screenshots/8.png" width=30%>
-<img src="./screenshots/9.png" width=30%>
-<img src="./screenshots/10.png" width=30%>
-<img src="./screenshots/11.png" width=30%>
-<img src="./screenshots/12.png" width=30%>
-<img src="./screenshots/13.png" width=30%>
-<img src="./screenshots/14.png" width=30%>
-</div>
+### UI/UX
+- **Expo Router:** Implements file-based navigation for a clean and organized routing structure.
+- **Advanced Animations:** Smooth and engaging animations powered by Reanimated and Gesture Handler.
+- **Native UI Components:** Uses Zeego to provide native menus for a seamless platform-specific feel.
+- **Optimized Lists:** Employs Shopify's FlashList for efficient rendering of long conversation lists.
+- **Image Zoom:** In-app image viewer with zoom and pan capabilities.
+- **Loading Skeletons:** Shimmer placeholders provide a better loading experience.
 
-## Demo
+### Performance
+- **MMKV Storage:** High-performance key/value storage for quick data access.
+- **Sentry Error Tracking:** Integrated for monitoring and debugging in production.
 
-<div style="display: flex; flex-direction: 'row';">
-<img src="./screenshots/intro.gif" width=30%>
-<img src="./screenshots/chat.gif" width=30%>
-<img src="./screenshots/context.gif" width=30%>
-<img src="./screenshots/sqlite.gif" width=30%>
-<img src="./screenshots/purchase.gif" width=30%>
-<img src="./screenshots/explore.gif" width=30%>
+## Project Structure
 
-<img src="./screenshots/dalle.gif" width=30%>
-<img src="./screenshots/imagecontext.gif" width=30%>
-<img src="./screenshots/imagezoom.gif" width=30%>
+The project follows the standard Expo Router layout for organizing routes and components:
 
+- `app/`: Contains all the application routes.
+  - `(auth)/`: Group for authentication-related screens (login, onboarding).
+  - `(drawer)/`: Main application screens accessible via a drawer navigator.
+    - `(chat)/`: Screens for creating and managing chats.
+    - `dalle.tsx`: The DALL-E image generation interface.
+    - `explore.tsx`: A screen for discovering features.
+  - `(modal)/`: Screens presented modally (e.g., Settings, Profile).
+- `components/`: Reusable UI components used throughout the application.
+- `constants/`: Global styles and color definitions.
+- `contexts/`: React contexts for state management (e.g., AuthContext).
+- `supabase/`: Configuration and serverless functions for the Supabase backend.
+- `utils/`: Helper functions and utility classes.
 
-</div>
+## Getting Started
 
-## 🚀 More
+### Prerequisites
+- Node.js (LTS version recommended)
+- Expo CLI
+- A Supabase account for backend services
+- An OpenAI API key
 
-**Take a shortcut from web developer to mobile development fluency with guided learning**
+### Installation & Setup
 
-Enjoyed this project? Learn to use React Native to build production-ready, native mobile apps for both iOS and Android based on your existing web development skills.
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/rhino257/al-mustashar-app.git
+    cd al-mustashar-app
+    ```
 
-<a href="https://galaxies.dev"><img src="banner.png" height="auto" width="100%"></a>
+2.  **Install dependencies:**
+    ```bash
+    npm install
+    ```
+
+3.  **Set up environment variables:**
+    Create a `.env` file in the root of the project and add your Supabase and OpenAI credentials:
+    ```
+    EXPO_PUBLIC_SUPABASE_URL=YOUR_SUPABASE_URL
+    EXPO_PUBLIC_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
+    OPENAI_API_KEY=YOUR_OPENAI_API_KEY
+    ```
+
+4.  **Run the application:**
+    ```bash
+    npx expo start
+    ```
+    This will start the Metro bundler. You can then run the app on an iOS simulator, Android emulator, or on your physical device using the Expo Go app.
+
+## Screenshots & Demos
+
+### Application Screenshots
+| | | |
+| :---: | :---: | :---: |
+| ![Screenshot 1](./screenshots/1.png) | ![Screenshot 2](./screenshots/2.png) | ![Screenshot 3](./screenshots/3.png) |
+| ![Screenshot 4](./screenshots/4.png) | ![Screenshot 5](./screenshots/5.png) | ![Screenshot 6](./screenshots/6.png) |
+| ![Screenshot 7](./screenshots/7.png) | ![Screenshot 8](./screenshots/8.png) | ![Screenshot 9](./screenshots/9.png) |
+| ![Screenshot 10](./screenshots/10.png) | ![Screenshot 11](./screenshots/11.png) | ![Screenshot 12](./screenshots/12.png) |
+| ![Screenshot 13](./screenshots/13.png) | ![Screenshot 14](./screenshots/14.png) | |
+
+### Feature Demos
+| Intro & Onboarding | Live Chat | DALL-E Generation |
+| :---: | :---: | :---: |
+| ![Intro GIF](./screenshots/intro.gif) | ![Chat GIF](./screenshots/chat.gif) | ![DALL-E GIF](./screenshots/dalle.gif) |
+| **Image Context** | **Image Zoom** | **Local DB** |
+| ![Image Context GIF](./screenshots/imagecontext.gif) | ![Image Zoom GIF](./screenshots/imagezoom.gif) | ![SQLite GIF](./screenshots/sqlite.gif) |
+
+## License
+
+This project is licensed under the [MIT License](./LICENSE).

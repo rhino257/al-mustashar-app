@@ -19,7 +19,8 @@ export interface Props {
   onStopSending: () => void; // Added prop to handle stopping the sending process
   isLampActive: boolean; // New prop
   onToggleLamp: () => void; // New prop
-  displayPopupMessage: (text: string) => void; // Added prop for displaying popup
+  displayPopupMessage: (text: string) => void; // Reverted: prop for displaying popup
+  displayCharLimitWarning: (text: string) => void; // New prop for character limit warning
 }
 
 const MessageInput: React.FC<Props> = (props) => {
@@ -45,8 +46,14 @@ const MessageInput: React.FC<Props> = (props) => {
   };
 
   // Handle text input change
-  const onChangeText = (text: string) => {
-    setMessage(text);
+  const onChangeText = (inputText: string) => {
+    let textToShow = inputText;
+    if (inputText.length > 4096) {
+      props.displayCharLimitWarning('لقد تجاوزت الحد الأقصى لعدد الأحرف'); // Use new dedicated warning prop
+      // Manually truncate the text before setting the state
+      textToShow = inputText.substring(0, 4096);
+    }
+    setMessage(textToShow);
   };
 
   // Handle send button press

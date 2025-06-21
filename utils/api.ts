@@ -18,6 +18,7 @@ interface RagQueryPayload {
   chat_id: string;
   user_id: string; // Added for MemoryManager
   use_reranker?: boolean; // Added for reranker
+  agent_persona?: string; // Added for agent persona selection
   ai_message_id?: string | null;
   files?: Array<{
     file_name: string;
@@ -63,6 +64,11 @@ export const streamRagQuery = async (
     // Add use_reranker if explicitly true
     if (payload.use_reranker === true) {
         queryParams.append('use_reranker', 'true');
+    }
+
+    // Add agent_persona if present
+    if (payload.agent_persona) {
+        queryParams.append('agent_persona', payload.agent_persona);
     }
 
     const constructedUrl = `${RAG_API_BASE_URL}/rag/query?${queryParams.toString()}`;

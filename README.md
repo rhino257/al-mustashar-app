@@ -82,24 +82,6 @@ The project follows the standard Expo Router layout for organizing routes and co
     ```
     This will start the Metro bundler. You can then run the app on an iOS simulator, Android emulator, or on your physical device using the Expo Go app.
 
-## Screenshots & Demos
 
-### Application Screenshots
-| | | |
-| :---: | :---: | :---: |
-| ![Screenshot 1](./screenshots/1.png) | ![Screenshot 2](./screenshots/2.png) | ![Screenshot 3](./screenshots/3.png) |
-| ![Screenshot 4](./screenshots/4.png) | ![Screenshot 5](./screenshots/5.png) | ![Screenshot 6](./screenshots/6.png) |
-| ![Screenshot 7](./screenshots/7.png) | ![Screenshot 8](./screenshots/8.png) | ![Screenshot 9](./screenshots/9.png) |
-| ![Screenshot 10](./screenshots/10.png) | ![Screenshot 11](./screenshots/11.png) | ![Screenshot 12](./screenshots/12.png) |
-| ![Screenshot 13](./screenshots/13.png) | ![Screenshot 14](./screenshots/14.png) | |
-
-### Feature Demos
-| Intro & Onboarding | Live Chat | DALL-E Generation |
-| :---: | :---: | :---: |
-| ![Intro GIF](./screenshots/intro.gif) | ![Chat GIF](./screenshots/chat.gif) | ![DALL-E GIF](./screenshots/dalle.gif) |
-| **Image Context** | **Image Zoom** | **Local DB** |
-| ![Image Context GIF](./screenshots/imagecontext.gif) | ![Image Zoom GIF](./screenshots/imagezoom.gif) | ![SQLite GIF](./screenshots/sqlite.gif) |
-
-## License
 
 This project is licensed under the [MIT License](./LICENSE).

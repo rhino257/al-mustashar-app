@@ -1,11 +1,15 @@
-import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
-import { Session, User, AuthChangeEvent } from '@supabase/supabase-js'; // Added AuthChangeEvent
-import { supabase } from '@/utils/supabase'; // Corrected import path
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
+import { Session, User, AuthChangeEvent } from '@supabase/supabase-js';
+import { supabase } from '@/utils/supabase';
+
+// Define the possible authentication states
+type AuthStatus = 'LOADING' | 'UNAUTHENTICATED' | 'AUTHENTICATED';
 
 interface AuthContextType {
   session: Session | null;
   user: User | null;
-  isLoading: boolean;
+  authStatus: AuthStatus;
+  isLoading: boolean; // Added isLoading property
   signOut: () => Promise<void>;
   fullName: string | null;
   avatarText: string | null;
@@ -22,7 +26,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true); // Start true
+  const [authStatus, setAuthStatus] = useState<AuthStatus>('LOADING');
   const [fullName, setFullName] = useState<string | null>(null);
   const [avatarText, setAvatarText] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
@@ -34,13 +38,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCurrentChatModeState(mode);
   };
 
-  const fetchUserProfileAndRelatedData = async (currentUserId: string | undefined) => {
+  const isLoading = useMemo(() => authStatus === 'LOADING', [authStatus]);
+
+  const fetchUserProfileAndRelatedData = useCallback(async (currentUserId: string | undefined) => {
     if (!currentUserId) {
       setFullName(null);
       setAvatarText(null);
       setPhoneNumber(null);
       setOnboardingStatus(null);
-      return; 
+      return;
     }
 
     try {
@@ -84,35 +90,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log(`[AuthContext] fetchUserProfileAndRelatedData - onboardingStatus set to: null (due to error)`);
     }
     console.log(`[AuthContext] fetchUserProfileAndRelatedData finished for user ID: ${currentUserId}`);
-  };
+  }, [session]); // Add session to useCallback dependencies if it's used inside
 
   useEffect(() => {
-    console.log('[AuthContext] Initializing AuthProvider, setting isLoading to true.');
-    setIsLoading(true); 
+    console.log('[AuthContext] Initializing AuthProvider, setting status to LOADING.');
+    setAuthStatus('LOADING');
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event: AuthChangeEvent, currentSession: Session | null) => { // Explicitly type event and currentSession
-        console.log(`[AuthContext] onAuthStateChange event: ${event}, session available: ${!!currentSession}. Current isLoading before processing: ${isLoading}`);
-        setSession(currentSession);
-        const currentUser = currentSession?.user || null;
-        setUser(currentUser);
+      async (event: AuthChangeEvent, currentSession: Session | null) => {
+        console.log(`[AuthContext] onAuthStateChange event: ${event}, session available: ${!!currentSession}.`);
+        
+        if (currentSession) {
+          // A session exists. Set the user and then fetch their profile data.
+          setSession(currentSession);
+          const currentUser = currentSession.user;
+          setUser(currentUser);
+          
+          if (currentUser) {
+            console.log(`[AuthContext] Fetching profile for user: ${currentUser.id}`);
+            await fetchUserProfileAndRelatedData(currentUser.id);
+            // IMPORTANT: Only after the profile is fetched, we are fully authenticated.
+            console.log(`[AuthContext] Profile fetch complete. Setting status to AUTHENTICATED.`);
+            setAuthStatus('AUTHENTICATED');
+          } else {
+            // This is an edge case, but if there's a session without a user, treat as unauthenticated.
+            setAuthStatus('UNAUTHENTICATED');
+          }
 
-        if (currentUser) {
-          console.log(`[AuthContext] Fetching profile for user: ${currentUser.id}`);
-          await fetchUserProfileAndRelatedData(currentUser.id);
-          console.log(`[AuthContext] Profile fetch complete for user: ${currentUser.id}`);
         } else {
-          // Clear profile data if no user
+          // No session exists. Clear all user data and mark as unauthenticated.
+          setSession(null);
+          setUser(null);
           setFullName(null);
           setAvatarText(null);
           setPhoneNumber(null);
           setOnboardingStatus(null);
-          console.log(`[AuthContext] Cleared profile data as no user in session. onboardingStatus is now null.`);
+          console.log(`[AuthContext] No session. Setting status to UNAUTHENTICATED.`);
+          setAuthStatus('UNAUTHENTICATED');
         }
-        
-        // After the first auth event, the initial loading is complete.
-        setIsLoading(false);
-        console.log(`[AuthContext] End of onAuthStateChange for event ${event}. isLoading is now false.`);
       }
     );
 
@@ -120,17 +135,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('[AuthContext] Unsubscribing from onAuthStateChange.');
       authListener.subscription.unsubscribe();
     };
-  }, []); 
-
+  }, [fetchUserProfileAndRelatedData]);
   const signOut = async () => {
-    console.log('[AuthContext] signOut called. Setting isLoading to true.');
-    setIsLoading(true); 
+    console.log('[AuthContext] signOut called. Setting status to LOADING.');
+    setAuthStatus('LOADING'); // Show a loading state while signing out
     const { error } = await supabase.auth.signOut();
     if (error) {
       console.error('[AuthContext] Error signing out:', error);
-      // isLoading will be set to false by onAuthStateChange 'SIGNED_OUT' event
-      // If onAuthStateChange doesn't fire or fails, isLoading might remain true.
-      // However, standard behavior is for SIGNED_OUT to fire.
+      // onAuthStateChange will fire with a null session and handle setting the final status.
     } else {
       console.log('[AuthContext] signOut successful. Waiting for onAuthStateChange(SIGNED_OUT).');
     }
@@ -143,11 +155,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshUserProfile = async () => {
     if (user?.id) {
-      console.log(`[AuthContext] refreshUserProfile called for user: ${user.id}. Setting isLoading to true.`);
-      setIsLoading(true);
+      console.log(`[AuthContext] refreshUserProfile called for user: ${user.id}.`);
+      // We don't set to LOADING here to avoid a full-screen loader on a manual refresh.
+      // The UI can show a local spinner if needed.
       await fetchUserProfileAndRelatedData(user.id);
-      console.log(`[AuthContext] refreshUserProfile finished for user: ${user.id}. Setting isLoading to false.`);
-      setIsLoading(false);
+      console.log(`[AuthContext] refreshUserProfile finished for user: ${user.id}.`);
     } else {
       console.log('[AuthContext] refreshUserProfile called but no user ID available.');
     }
@@ -158,7 +170,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         session,
         user,
-        isLoading,
+        authStatus,
         signOut,
         fullName,
         avatarText,
@@ -168,6 +180,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         refreshUserProfile,
         currentChatMode,
         setCurrentChatMode,
+        isLoading, // Added isLoading to the context value
       }}>
       {children}
     </AuthContext.Provider>
